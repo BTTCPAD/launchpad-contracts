@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import "./PeakDefiSale.sol";
 
-
 contract SalesFactory {
 
     address public allocationStaking;
