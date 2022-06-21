@@ -10,7 +10,7 @@ interface IERC20Extented is IERC20 {
     function decimals() external view returns (uint8);
 }
 
-contract PeakDefiSale {
+contract BttcPadSale {
 
     using SafeERC20 for IERC20Extented;
 

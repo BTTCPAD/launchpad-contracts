@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./PeakDefiSale.sol";
+import "./BttcPadSale.sol";
 
 contract SalesFactory {
 
@@ -37,7 +37,7 @@ contract SalesFactory {
     external
     onlyAdmin
     {
-        PeakDefiSale sale = new PeakDefiSale(address(admin), allocationStaking);
+        BttcPadSale sale = new BttcPadSale(address(admin), allocationStaking);
 
         isSaleCreatedThroughFactory[address(sale)] = true;
         allSales.push(address(sale));
