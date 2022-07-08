@@ -16,6 +16,7 @@ contract BttcPadSale {
 
     IAllocationStaking public allocationStakingContract;
     ISalesFactory public factory;
+    IERC20Extented public USDCToken = IERC20Extented(0x935faA2FCec6Ab81265B301a30467Bbc804b43d3);
     
     struct Sale {
         IERC20Extented token;
@@ -25,7 +26,7 @@ contract BttcPadSale {
         address saleOwner;
         uint256 tokenPriceInBUST;
         uint256 amountOfTokensToSell;
-        uint256 totalBUSDRaised;
+        uint256 totalUSDCRaised;
         uint256 saleEnd;
         uint256 saleStart;
         uint256 tokensUnlockTime;
@@ -61,16 +62,19 @@ contract BttcPadSale {
 
     Sale public sale;
     Registration public registration;
+
     address public admin;
+
     bool tokensDeposited;
-    IERC20Extented public BUSDToken = IERC20Extented(0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56);
     uint256 public numberOfParticipants;
     mapping(address => Participation) public userToParticipation;
     mapping(address => uint256) public addressToRoundRegisteredFor;
     mapping(address => bool) public isParticipated;
     mapping(address => WhitelistUser) public Whitelist;
+
     uint256[] public vestingPortionsUnlockTime;
     uint256[] public vestingPercentPerPortion;
+
     Tier[] public tierIdToTier;
     uint256 public totalTierWeight;
 
@@ -123,7 +127,7 @@ contract BttcPadSale {
     function setSaleParams(
         address _token,
         address _saleOwner,
-        uint256 _tokenPriceInBUSD,
+        uint256 _tokenPriceInUSDC,
         uint256 _amountOfTokensToSell,
         uint256 _saleStart,
         uint256 _saleEnd,
@@ -136,7 +140,7 @@ contract BttcPadSale {
             "owner can`t be 0."
         );
         require(
-            _tokenPriceInBUSD != 0 &&
+            _tokenPriceInUSDC != 0 &&
                 _amountOfTokensToSell != 0 &&
                 _saleEnd > block.timestamp &&
                 _tokensUnlockTime > block.timestamp,
@@ -145,7 +149,7 @@ contract BttcPadSale {
         sale.token = IERC20Extented(_token);
         sale.isCreated = true;
         sale.saleOwner = _saleOwner;
-        sale.tokenPriceInBUST = _tokenPriceInBUSD;
+        sale.tokenPriceInBUST = _tokenPriceInUSDC;
         sale.amountOfTokensToSell = _amountOfTokensToSell;
         sale.saleEnd = _saleEnd;
         sale.saleStart = _saleStart;
@@ -182,8 +186,8 @@ contract BttcPadSale {
             Tier memory t = tierIdToTier[i];
             if( t.minToStake <= stakeAmount && t.maxToStake > stakeAmount){
                 WhitelistUser memory u = WhitelistUser({
-                userAddress: msg.sender, 
-                userTierId: i
+                    userAddress: msg.sender, 
+                    userTierId: i
                 });
                 Whitelist[msg.sender] = u;
                 registration.numberOfRegistrants++;
@@ -192,19 +196,17 @@ contract BttcPadSale {
         }
     }
     
-    function updateTokenPriceInBUSD(uint256 price) external onlyAdmin {
+    function updateTokenPriceInUSDC(uint256 price) external onlyAdmin {
         require(price > 0, "Price == 0.");
         require(sale.saleStart > block.timestamp, "Sale started");
         sale.tokenPriceInBUST = price;
     }
 
     function setWhitelistUsers(address [] calldata users, uint256 tierId) public payable onlyAdmin {
-
          for (uint256 i = 0; i < users.length; i++) {
-
             WhitelistUser memory u = WhitelistUser({
-            userAddress: users[i], 
-            userTierId: tierId
+                userAddress: users[i], 
+                userTierId: tierId
             });
             Whitelist[users[i]] = u;
         }
@@ -268,14 +270,14 @@ contract BttcPadSale {
 
         require(amount > 0, "Can't buy 0 tokens");
 
-        require((amount / (10 ** BUSDToken.decimals())) % 2 == 0, "Amount need to be divide by 2");
+        require((amount / (10 ** USDCToken.decimals())) % 2 == 0, "Amount need to be divide by 2");
 
         require( Whitelist[msg.sender].userAddress != address(0), "User must be in white list" );
 
         require(amount >= sale.minimumTokenDeposit, "Can't deposit less than minimum"  );
 
         uint256 _tierId = Whitelist[msg.sender].userTierId;
-        sale.totalBUSDRaised = sale.totalBUSDRaised + amount;
+        sale.totalUSDCRaised = sale.totalUSDCRaised + amount;
 
         bool[] memory _isPortionWithdrawn = new bool[](
             vestingPortionsUnlockTime.length
@@ -297,7 +299,7 @@ contract BttcPadSale {
         isParticipated[msg.sender] = true;
         numberOfParticipants++;
 
-        BUSDToken.safeTransferFrom(msg.sender, address(this), amount);
+        USDCToken.safeTransferFrom(msg.sender, address(this), amount);
     }
 
     function withdrawTokens(uint256 portionId) external {
@@ -338,7 +340,7 @@ contract BttcPadSale {
         uint256 leftover = p.amountPaid - tokensForUser * sale.tokenPriceInBUST / 10**sale.token.decimals();
 
         if(leftover > 0){
-            BUSDToken.safeTransfer(msg.sender, leftover);
+            USDCToken.safeTransfer(msg.sender, leftover);
         }
     }
     
@@ -385,8 +387,8 @@ contract BttcPadSale {
         require(block.timestamp >= sale.saleEnd);
         require(!sale.earningsWithdrawn);
         sale.earningsWithdrawn = true;
-        uint256 totalProfit = sale.totalBUSDRaised;
-        BUSDToken.safeTransfer(msg.sender, totalProfit);
+        uint256 totalProfit = sale.totalUSDCRaised;
+        USDCToken.safeTransfer(msg.sender, totalProfit);
     }
 
     function withdrawLeftoverInternal() internal {
