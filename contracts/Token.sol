@@ -353,7 +353,7 @@ contract ERC20Token is Context, IERC20, Ownable {
     _name = "BTTCPAD";
     _symbol = "BTP";
     _decimals = 18;
-    _totalSupply = 10000000000000000000000000000000;
+    _totalSupply = 100000000000000000000000000;
     _balances[msg.sender] = _totalSupply;
 
     emit Transfer(address(0), msg.sender, _totalSupply);

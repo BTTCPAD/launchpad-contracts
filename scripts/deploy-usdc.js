@@ -14,12 +14,17 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
-  const Greeter = await hre.ethers.getContractFactory("Greeter");
-  const greeter = await Greeter.deploy("Hello, Hardhat!");
+  const USDC_t = await hre.ethers.getContractFactory("USDC_t");
+  const usdc_t = await USDC_t.deploy(
+    "USD Coin_TRON",
+    "USDC_t",
+    6,
+    "0x284c98652c9bF896E080832fAe015D01C0022a43"
+  );
 
-  await greeter.deployed();
+  await usdc_t.deployed();
 
-  console.log("Greeter deployed to:", greeter.address);
+  console.log("USDC deployed to:", usdc_t.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

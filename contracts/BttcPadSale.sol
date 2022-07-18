@@ -16,7 +16,7 @@ contract BttcPadSale {
 
     IAllocationStaking public allocationStakingContract;
     ISalesFactory public factory;
-    IERC20Extented public USDCToken = IERC20Extented(0x935faA2FCec6Ab81265B301a30467Bbc804b43d3);
+    IERC20Extented public USDCToken = IERC20Extented(0xC0e296da19bBdcf960291C7AEf02c9F24D6fA1fd);
     
     struct Sale {
         IERC20Extented token;
@@ -24,7 +24,7 @@ contract BttcPadSale {
         bool earningsWithdrawn;
         bool leftoverWithdrawn;
         address saleOwner;
-        uint256 tokenPriceInBUST;
+        uint256 tokenPriceInUSDC;
         uint256 amountOfTokensToSell;
         uint256 totalUSDCRaised;
         uint256 saleEnd;
@@ -44,7 +44,7 @@ contract BttcPadSale {
     struct Tier {
         uint256 participants;
         uint256 tierWeight; 
-        uint256 BUSTDeposited;
+        uint256 USDCDeposited;
         uint256 minToStake;
         uint256 maxToStake;
     }
@@ -149,7 +149,7 @@ contract BttcPadSale {
         sale.token = IERC20Extented(_token);
         sale.isCreated = true;
         sale.saleOwner = _saleOwner;
-        sale.tokenPriceInBUST = _tokenPriceInUSDC;
+        sale.tokenPriceInUSDC = _tokenPriceInUSDC;
         sale.amountOfTokensToSell = _amountOfTokensToSell;
         sale.saleEnd = _saleEnd;
         sale.saleStart = _saleStart;
@@ -199,7 +199,7 @@ contract BttcPadSale {
     function updateTokenPriceInUSDC(uint256 price) external onlyAdmin {
         require(price > 0, "Price == 0.");
         require(sale.saleStart > block.timestamp, "Sale started");
-        sale.tokenPriceInBUST = price;
+        sale.tokenPriceInUSDC = price;
     }
 
     function setWhitelistUsers(address [] calldata users, uint256 tierId) public payable onlyAdmin {
@@ -232,7 +232,7 @@ contract BttcPadSale {
             Tier memory t = Tier({
                 participants: 0,
                 tierWeight: tierWeights[i],
-                BUSTDeposited: 0,
+                USDCDeposited: 0,
                 minToStake: tierPoints[i],
                 maxToStake: maxToStake
             });
@@ -294,7 +294,7 @@ contract BttcPadSale {
         Tier storage t = tierIdToTier[_tierId];
 
         t.participants = t.participants + 1;
-        t.BUSTDeposited = t.BUSTDeposited + amount;
+        t.USDCDeposited = t.USDCDeposited + amount;
         userToParticipation[msg.sender] = p;
         isParticipated[msg.sender] = true;
         numberOfParticipants++;
@@ -337,7 +337,7 @@ contract BttcPadSale {
 
         uint256 tokensForUser = calculateAmountWithdrawing(userAddress, 100);
 
-        uint256 leftover = p.amountPaid - tokensForUser * sale.tokenPriceInBUST / 10**sale.token.decimals();
+        uint256 leftover = p.amountPaid - tokensForUser * sale.tokenPriceInUSDC / 10**sale.token.decimals();
 
         if(leftover > 0){
             USDCToken.safeTransfer(msg.sender, leftover);
@@ -412,10 +412,10 @@ contract BttcPadSale {
 
             uint256 tokensPerTier = t.tierWeight * sale.amountOfTokensToSell/totalTierWeight;
 
-            if( tokensPerTier * sale.tokenPriceInBUST / 10**sale.token.decimals() <= t.BUSTDeposited ){
+            if( tokensPerTier * sale.tokenPriceInUSDC / 10**sale.token.decimals() <= t.USDCDeposited ){
                 totalTokensSold = totalTokensSold + tokensPerTier;
             } else {
-                totalTokensSold =  totalTokensSold + t.BUSTDeposited / sale.tokenPriceInBUST * 10**sale.token.decimals();
+                totalTokensSold =  totalTokensSold + t.USDCDeposited / sale.tokenPriceInUSDC * 10**sale.token.decimals();
             }
         }
 
@@ -454,7 +454,7 @@ contract BttcPadSale {
 
         uint256 maximunTokensForUser = tokensPerTier*tokenPercent/t.participants/100;
 
-        uint256 userTokenWish = p.amountPaid/sale.tokenPriceInBUST * (10**sale.token.decimals())*tokenPercent/100;
+        uint256 userTokenWish = p.amountPaid/sale.tokenPriceInUSDC * (10**sale.token.decimals())*tokenPercent/100;
 
         if(maximunTokensForUser >= userTokenWish){
             tokensForUser = userTokenWish;
