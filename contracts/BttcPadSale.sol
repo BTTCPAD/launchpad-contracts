@@ -2,22 +2,24 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol"; 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./ISalesFactory.sol";
 import "./IAllocationStaking.sol";
+
+import "hardhat/console.sol";
 
 interface IERC20Extented is IERC20 {
     function decimals() external view returns (uint8);
 }
 
 contract BttcPadSale {
-
     using SafeERC20 for IERC20Extented;
 
     IAllocationStaking public allocationStakingContract;
     ISalesFactory public factory;
-    IERC20Extented public USDCToken = IERC20Extented(0xC0e296da19bBdcf960291C7AEf02c9F24D6fA1fd);
-    
+    IERC20Extented public USDCToken =
+        IERC20Extented(0xC0e296da19bBdcf960291C7AEf02c9F24D6fA1fd);
+
     struct Sale {
         IERC20Extented token;
         bool isCreated;
@@ -43,15 +45,18 @@ contract BttcPadSale {
 
     struct Tier {
         uint256 participants;
-        uint256 tierWeight; 
+        uint256 tierWeight;
         uint256 USDCDeposited;
         uint256 minToStake;
         uint256 maxToStake;
+        bool isLottery;
+        address[] lotteryWallets;
     }
 
     struct WhitelistUser {
         address userAddress;
         uint256 userTierId;
+        bool isAllowed;
     }
 
     struct Registration {
@@ -70,7 +75,7 @@ contract BttcPadSale {
     mapping(address => Participation) public userToParticipation;
     mapping(address => uint256) public addressToRoundRegisteredFor;
     mapping(address => bool) public isParticipated;
-    mapping(address => WhitelistUser) public Whitelist;
+    mapping(address => WhitelistUser) public whitelist;
 
     uint256[] public vestingPortionsUnlockTime;
     uint256[] public vestingPercentPerPortion;
@@ -84,22 +89,16 @@ contract BttcPadSale {
     }
 
     modifier onlyAdmin() {
-        require(
-            msg.sender == admin ,
-            "Only admin can call this function."
-        );
+        require(msg.sender == admin, "Only admin can call this function");
         _;
     }
 
-
-    constructor(
-        address _admin, 
-        address _allocationStaking)  {
-            require(_admin != address(0));
-            require(_allocationStaking != address(0));
-            admin = _admin;
-            factory = ISalesFactory(msg.sender);
-            allocationStakingContract = IAllocationStaking(_allocationStaking);
+    constructor(address _admin, address _allocationStaking) {
+        require(_admin != address(0));
+        require(_allocationStaking != address(0));
+        admin = _admin;
+        factory = ISalesFactory(msg.sender);
+        allocationStakingContract = IAllocationStaking(_allocationStaking);
     }
 
     function setVestingParams(
@@ -108,10 +107,14 @@ contract BttcPadSale {
     ) external onlyAdmin {
         require(
             vestingPercentPerPortion.length == 0 &&
-            vestingPortionsUnlockTime.length == 0
+                vestingPortionsUnlockTime.length == 0,
+            "Vesting params are already set"
         );
-        require(_unlockingTimes.length == _percents.length);
-        require(sale.isCreated, "Safeguard for making sure setSaleParams get first called.");
+        require(
+            _unlockingTimes.length == _percents.length,
+            "Parameters should have same length"
+        );
+        require(sale.isCreated, "Sale params are not set");
 
         uint256 sum;
 
@@ -121,7 +124,7 @@ contract BttcPadSale {
             sum += _percents[i];
         }
 
-        require(sum == 100, "Percent distribution issue.");
+        require(sum == 100, "Percent distribution issue");
     }
 
     function setSaleParams(
@@ -134,18 +137,22 @@ contract BttcPadSale {
         uint256 _tokensUnlockTime,
         uint256 _minimumTokenDeposit
     ) external onlyAdmin {
-        require(!sale.isCreated, "Sale created.");
+        require(!sale.isCreated, "Sale already created");
+        require(_saleOwner != address(0), "owner can`t be 0");
+        require(_tokenPriceInUSDC != 0, "Token price should be greater than 0");
         require(
-            _saleOwner != address(0),
-            "owner can`t be 0."
+            _amountOfTokensToSell != 0,
+            "Amount to sell should be greater than 0"
         );
         require(
-            _tokenPriceInUSDC != 0 &&
-                _amountOfTokensToSell != 0 &&
-                _saleEnd > block.timestamp &&
-                _tokensUnlockTime > block.timestamp,
-            "Bad input"
+            _saleEnd > block.timestamp,
+            "Sale end time should be in the future"
         );
+        require(
+            _tokensUnlockTime > block.timestamp,
+            "Token unlock time should be in the future"
+        );
+
         sale.token = IERC20Extented(_token);
         sale.isCreated = true;
         sale.saleOwner = _saleOwner;
@@ -161,92 +168,123 @@ contract BttcPadSale {
         uint256 _registrationTimeStarts,
         uint256 _registrationTimeEnds
     ) external onlyAdmin {
-        require(sale.isCreated, "1");
+        require(sale.isCreated, "Sale params are not set");
         require(
-            _registrationTimeStarts >= block.timestamp &&
-                _registrationTimeEnds > _registrationTimeStarts, "3"
+            _registrationTimeStarts >= block.timestamp,
+            "Registration start time should be after current time"
         );
-        require(_registrationTimeEnds < sale.saleEnd, "4");
-
+        require(
+            _registrationTimeEnds > _registrationTimeStarts,
+            "Registration end time should be after start time"
+        );
+        require(
+            _registrationTimeEnds < sale.saleEnd,
+            "Registration end time should be before sale end"
+        );
 
         registration.registrationTimeStarts = _registrationTimeStarts;
         registration.registrationTimeEnds = _registrationTimeEnds;
-
     }
 
     function registerForSale() public {
-
         uint256 stakeAmount = allocationStakingContract.deposited(msg.sender);
 
         require(tierIdToTier.length > 0, "Need to set Tiers");
-        require(tierIdToTier[0].minToStake <= stakeAmount / 1e18 , "Need to stake minimum for current sale");
-        require( Whitelist[msg.sender].userAddress != msg.sender, "You are registered");
-        require( block.timestamp >= registration.registrationTimeStarts && block.timestamp <= registration.registrationTimeEnds , "Register is closed");
+        require(
+            tierIdToTier[0].minToStake <= stakeAmount,
+            "Need to stake minimum for current sale"
+        );
+        require(
+            whitelist[msg.sender].userAddress != msg.sender,
+            "You are registered"
+        );
+        require(
+            block.timestamp >= registration.registrationTimeStarts &&
+                block.timestamp <= registration.registrationTimeEnds,
+            "Register is closed"
+        );
+
         for (uint256 i = 0; i < tierIdToTier.length; i++) {
-            Tier memory t = tierIdToTier[i];
-            if( t.minToStake <= stakeAmount && t.maxToStake > stakeAmount){
+            Tier storage t = tierIdToTier[i];
+            if (t.minToStake <= stakeAmount && t.maxToStake > stakeAmount) {
                 WhitelistUser memory u = WhitelistUser({
-                    userAddress: msg.sender, 
-                    userTierId: i
+                    userAddress: msg.sender,
+                    userTierId: i,
+                    isAllowed: true
                 });
-                Whitelist[msg.sender] = u;
+
+                if (t.isLottery) {
+                    t.lotteryWallets.push(msg.sender);
+                    u.isAllowed = false;
+                }
+
+                whitelist[msg.sender] = u;
                 registration.numberOfRegistrants++;
                 break;
             }
         }
     }
-    
+
     function updateTokenPriceInUSDC(uint256 price) external onlyAdmin {
-        require(price > 0, "Price == 0.");
+        require(price > 0, "Price == 0");
         require(sale.saleStart > block.timestamp, "Sale started");
         sale.tokenPriceInUSDC = price;
     }
 
-    function setWhitelistUsers(address [] calldata users, uint256 tierId) public payable onlyAdmin {
-         for (uint256 i = 0; i < users.length; i++) {
+    function setWhitelistUsers(address[] calldata users, uint256 tierId)
+        public
+        payable
+        onlyAdmin
+    {
+        for (uint256 i = 0; i < users.length; i++) {
             WhitelistUser memory u = WhitelistUser({
-                userAddress: users[i], 
-                userTierId: tierId
+                userAddress: users[i],
+                userTierId: tierId,
+                isAllowed: true
             });
-            Whitelist[users[i]] = u;
+            whitelist[users[i]] = u;
         }
-        
     }
 
-    function addTiers(uint256 [] calldata tierWeights, uint256 [] calldata tierPoints)  public onlyAdmin {   
-        
+    function addTiers(
+        uint256[] calldata tierWeights,
+        uint256[] calldata tierPoints,
+        bool[] calldata isLottery
+    ) public onlyAdmin {
         require(tierWeights.length > 0, "Need 1 tier");
-        require(tierWeights.length == tierPoints.length, "nedd same length");
-
+        require(
+            tierWeights.length == tierPoints.length,
+            "Need to be same length"
+        );
+        require(
+            tierWeights.length == isLottery.length,
+            "Need to be same length"
+        );
 
         for (uint256 i = 0; i < tierWeights.length; i++) {
-            require( 
-                tierWeights[i] > 0,
-                "weight > 0"
-            );
+            require(tierWeights[i] > 0, "Weight should be greater than 0");
 
             totalTierWeight = totalTierWeight + tierWeights[i];
 
-            uint256 maxToStake = tierPoints.length - 1 > i ? tierPoints[i+1] : 2**256 - 1;
+            uint256 maxToStake = tierPoints.length - 1 > i
+                ? tierPoints[i + 1]
+                : 2**256 - 1;
 
             Tier memory t = Tier({
                 participants: 0,
                 tierWeight: tierWeights[i],
                 USDCDeposited: 0,
                 minToStake: tierPoints[i],
-                maxToStake: maxToStake
+                maxToStake: maxToStake,
+                isLottery: isLottery[i],
+                lotteryWallets: new address[](0)
             });
             tierIdToTier.push(t);
         }
-
-     
     }
 
-
-    function depositTokens() external onlySaleOwner  {
-        require(
-            !tokensDeposited, "Deposit only once"
-        );
+    function depositTokens() external onlySaleOwner {
+        require(!tokensDeposited, "Deposit only once");
         tokensDeposited = true;
         sale.token.safeTransferFrom(
             msg.sender,
@@ -255,28 +293,34 @@ contract BttcPadSale {
         );
     }
 
-    function participate(uint256 amount) 
-    external 
-    payable 
-    {
+    function participate(uint256 amount) external payable {
         require(sale.isCreated, "Wait sale create");
-
-        require( block.timestamp >= sale.saleStart && block.timestamp <= sale.saleEnd , "Sale not active");
-
-        require(!isParticipated[msg.sender], "participate only once.");
+        require(
+            block.timestamp >= sale.saleStart &&
+                block.timestamp <= sale.saleEnd,
+            "Sale not active"
+        );
+        require(!isParticipated[msg.sender], "Participate only once");
 
         require(msg.sender == tx.origin, "Only direct calls");
 
-
         require(amount > 0, "Can't buy 0 tokens");
+        require(
+            (amount / (10**USDCToken.decimals())) % 2 == 0,
+            "Amount need to be divide by 2"
+        );
+        require(
+            amount >= sale.minimumTokenDeposit,
+            "Can't deposit less than minimum"
+        );
 
-        require((amount / (10 ** USDCToken.decimals())) % 2 == 0, "Amount need to be divide by 2");
+        require(
+            whitelist[msg.sender].userAddress != address(0),
+            "User must be in white list"
+        );
+        require(whitelist[msg.sender].isAllowed, "You can't access sale");
 
-        require( Whitelist[msg.sender].userAddress != address(0), "User must be in white list" );
-
-        require(amount >= sale.minimumTokenDeposit, "Can't deposit less than minimum"  );
-
-        uint256 _tierId = Whitelist[msg.sender].userTierId;
+        uint256 _tierId = whitelist[msg.sender].userTierId;
         sale.totalUSDCRaised = sale.totalUSDCRaised + amount;
 
         bool[] memory _isPortionWithdrawn = new bool[](
@@ -305,13 +349,13 @@ contract BttcPadSale {
     function withdrawTokens(uint256 portionId) external {
         require(
             block.timestamp >= sale.tokensUnlockTime,
-            "Tokens cann`t be withdrawn."
+            "Tokens cann`t be withdrawn"
         );
         require(portionId < vestingPercentPerPortion.length);
 
         Participation storage p = userToParticipation[msg.sender];
 
-        if(!p.isTokenLeftWithdrawn){
+        if (!p.isTokenLeftWithdrawn) {
             withdrawLeftoverForUser(msg.sender);
             p.isTokenLeftWithdrawn = true;
         }
@@ -321,41 +365,44 @@ contract BttcPadSale {
             vestingPortionsUnlockTime[portionId] <= block.timestamp
         ) {
             p.isPortionWithdrawn[portionId] = true;
-            uint256 amountWithdrawing = calculateAmountWithdrawing(msg.sender, vestingPercentPerPortion[portionId]);
+            uint256 amountWithdrawing = calculateAmountWithdrawing(
+                msg.sender,
+                vestingPercentPerPortion[portionId]
+            );
 
-            if(amountWithdrawing > 0) {
+            if (amountWithdrawing > 0) {
                 sale.token.safeTransfer(msg.sender, amountWithdrawing);
             }
         } else {
-            revert("Tokens withdrawn or portion not unlocked.");
+            revert("Tokens withdrawn or portion not unlocked");
         }
     }
 
-    function withdrawLeftoverForUser(address userAddress) internal  {
+    function withdrawLeftoverForUser(address userAddress) internal {
         Participation memory p = userToParticipation[userAddress];
-
 
         uint256 tokensForUser = calculateAmountWithdrawing(userAddress, 100);
 
-        uint256 leftover = p.amountPaid - tokensForUser * sale.tokenPriceInUSDC / 10**sale.token.decimals();
+        uint256 leftover = p.amountPaid -
+            (tokensForUser * sale.tokenPriceInUSDC) /
+            10**sale.token.decimals();
 
-        if(leftover > 0){
+        if (leftover > 0) {
             USDCToken.safeTransfer(msg.sender, leftover);
         }
     }
-    
 
-    function withdrawMultiplePortions(uint256 [] calldata portionIds) external {
+    function withdrawMultiplePortions(uint256[] calldata portionIds) external {
         uint256 totalToWithdraw = 0;
 
         Participation storage p = userToParticipation[msg.sender];
 
-        if(!p.isTokenLeftWithdrawn){
+        if (!p.isTokenLeftWithdrawn) {
             withdrawLeftoverForUser(msg.sender);
             p.isTokenLeftWithdrawn = true;
         }
 
-        for(uint i=0; i < portionIds.length; i++) {
+        for (uint256 i = 0; i < portionIds.length; i++) {
             uint256 portionId = portionIds[i];
             require(portionId < vestingPercentPerPortion.length);
 
@@ -364,12 +411,15 @@ contract BttcPadSale {
                 vestingPortionsUnlockTime[portionId] <= block.timestamp
             ) {
                 p.isPortionWithdrawn[portionId] = true;
-                uint256 amountWithdrawing = calculateAmountWithdrawing(msg.sender, vestingPercentPerPortion[portionId]);
+                uint256 amountWithdrawing = calculateAmountWithdrawing(
+                    msg.sender,
+                    vestingPercentPerPortion[portionId]
+                );
                 totalToWithdraw = totalToWithdraw + amountWithdrawing;
             }
         }
 
-        if(totalToWithdraw > 0) {
+        if (totalToWithdraw > 0) {
             sale.token.safeTransfer(msg.sender, totalToWithdraw);
         }
     }
@@ -382,8 +432,7 @@ contract BttcPadSale {
         withdrawLeftoverInternal();
     }
 
-
-    function withdrawEarningsInternal() internal  {
+    function withdrawEarningsInternal() internal {
         require(block.timestamp >= sale.saleEnd);
         require(!sale.earningsWithdrawn);
         sale.earningsWithdrawn = true;
@@ -402,34 +451,34 @@ contract BttcPadSale {
         }
     }
 
-    function calculateTotalTokensSold() internal view returns (
-            uint256
-        ) {
+    function calculateTotalTokensSold() internal view returns (uint256) {
         uint256 totalTokensSold = 0;
 
         for (uint256 i = 0; i < tierIdToTier.length; i++) {
             Tier memory t = tierIdToTier[i];
 
-            uint256 tokensPerTier = t.tierWeight * sale.amountOfTokensToSell/totalTierWeight;
+            uint256 tokensPerTier = (t.tierWeight * sale.amountOfTokensToSell) /
+                totalTierWeight;
 
-            if( tokensPerTier * sale.tokenPriceInUSDC / 10**sale.token.decimals() <= t.USDCDeposited ){
+            if (
+                (tokensPerTier * sale.tokenPriceInUSDC) /
+                    10**sale.token.decimals() <=
+                t.USDCDeposited
+            ) {
                 totalTokensSold = totalTokensSold + tokensPerTier;
             } else {
-                totalTokensSold =  totalTokensSold + t.USDCDeposited / sale.tokenPriceInUSDC * 10**sale.token.decimals();
+                totalTokensSold =
+                    totalTokensSold +
+                    (t.USDCDeposited / sale.tokenPriceInUSDC) *
+                    10**sale.token.decimals();
             }
         }
 
-        return(totalTokensSold);
+        return (totalTokensSold);
     }
 
-    function isWhitelisted()
-        external
-        view
-        returns (
-            bool
-        )
-    {
-        return (Whitelist[msg.sender].userAddress == msg.sender);
+    function isWhitelisted() external view returns (bool) {
+        return (whitelist[msg.sender].userAddress == msg.sender);
     }
 
     function getVestingInfo()
@@ -440,43 +489,99 @@ contract BttcPadSale {
         return (vestingPortionsUnlockTime, vestingPercentPerPortion);
     }
 
-    function calculateAmountWithdrawing(address userAddress, uint256 tokenPercent) internal view returns (
-            uint256
-        ) {
-        
+    function calculateAmountWithdrawing(
+        address userAddress,
+        uint256 tokenPercent
+    ) internal view returns (uint256) {
         Participation memory p = userToParticipation[userAddress];
-
-        Tier memory t = tierIdToTier[uint(p.tierId)];
+        Tier memory t = tierIdToTier[uint256(p.tierId)];
 
         uint256 tokensForUser = 0;
+        uint256 tokensPerTier = (t.tierWeight * sale.amountOfTokensToSell) /
+            totalTierWeight;
+        uint256 maximunTokensForUser = (tokensPerTier * tokenPercent) /
+            t.participants /
+            100;
+        uint256 userTokenWish = ((p.amountPaid / sale.tokenPriceInUSDC) *
+            (10**sale.token.decimals()) *
+            tokenPercent) / 100;
 
-        uint256 tokensPerTier = t.tierWeight*sale.amountOfTokensToSell/totalTierWeight;
-
-        uint256 maximunTokensForUser = tokensPerTier*tokenPercent/t.participants/100;
-
-        uint256 userTokenWish = p.amountPaid/sale.tokenPriceInUSDC * (10**sale.token.decimals())*tokenPercent/100;
-
-        if(maximunTokensForUser >= userTokenWish){
+        if (maximunTokensForUser >= userTokenWish) {
             tokensForUser = userTokenWish;
-        }else{
+        } else {
             tokensForUser = maximunTokensForUser;
         }
 
         return (tokensForUser);
     }
 
-    function calculateAmountWithdrawingPortionPub(address userAddress, uint256 tokenPercent) public view returns (
-            uint256
-        ) {
-        
+    function calculateAmountWithdrawingPortionPub(
+        address userAddress,
+        uint256 tokenPercent
+    ) public view returns (uint256) {
         Participation memory p = userToParticipation[userAddress];
+        Tier memory t = tierIdToTier[uint256(p.tierId)];
 
-        Tier memory t = tierIdToTier[uint(p.tierId)];
-
-        uint256 tokensPerTier = t.tierWeight * sale.amountOfTokensToSell/totalTierWeight;
-
-        uint256 tokensForUser = tokensPerTier*tokenPercent/t.participants/100;
-
+        uint256 tokensPerTier = (t.tierWeight * sale.amountOfTokensToSell) /
+            totalTierWeight;
+        uint256 tokensForUser = (tokensPerTier * tokenPercent) /
+            t.participants /
+            100;
         return (tokensForUser);
+    }
+
+    function random(uint256 number) private view returns (uint256) {
+        return
+            uint256(
+                keccak256(
+                    abi.encodePacked(
+                        block.timestamp + number,
+                        block.difficulty + number,
+                        msg.sender
+                    )
+                )
+            ) % number;
+    }
+
+    function remove(uint256 tierId, uint256 index) private {
+        Tier storage tier = tierIdToTier[tierId];
+        tier.lotteryWallets[index] = tier.lotteryWallets[
+            tier.lotteryWallets.length - 1
+        ];
+        tier.lotteryWallets.pop();
+    }
+
+    function runLottery(uint256 tierId, uint256 numberOfWinners)
+        public
+        onlyAdmin
+    {
+        Tier storage tier = tierIdToTier[tierId];
+
+        require(tier.isLottery, "Lottery is not available for this tier");
+        require(
+            numberOfWinners <= tier.lotteryWallets.length,
+            "Too many winners"
+        );
+        require(
+            block.timestamp > registration.registrationTimeEnds,
+            "Lottery should run after registration ends"
+        );
+
+        for (uint256 i = 0; i < numberOfWinners; i++) {
+            uint256 rand = random(tier.lotteryWallets.length);
+            WhitelistUser memory u = whitelist[tier.lotteryWallets[rand]];
+            u.isAllowed = true;
+            whitelist[tier.lotteryWallets[rand]] = u;
+            remove(tierId, rand);
+        }
+    }
+
+    // DEV
+    function setUSDCTokenAddress(address _address) public onlyAdmin {
+        USDCToken = IERC20Extented(_address);
+    }
+
+    function getLotteryWallets(uint256 tierId) public view returns (uint256) {
+        return tierIdToTier[tierId].lotteryWallets.length;
     }
 }
