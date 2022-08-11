@@ -72,7 +72,11 @@ describe("BTTCPadSale", function () {
         currentTimestamp,
         currentTimestamp + 12 * 60 * 60,
         currentTimestamp + 12 * 60 * 60,
-        50000000 // 50 USDC
+        currentTimestamp + 24 * 60 * 60,
+        50000000, // 50 USDC
+        50000000, // 50 USDC
+        500000000, // 500 USDC
+        currentTimestamp + 24 * 60 * 60
       );
     });
 
@@ -86,7 +90,11 @@ describe("BTTCPadSale", function () {
         currentTimestamp,
         currentTimestamp + 12 * 60 * 60,
         currentTimestamp + 12 * 60 * 60,
-        50000000 // 50 USDC
+        currentTimestamp + 24 * 60 * 60,
+        50000000, // 50 USDC
+        50000000, // 50 USDC
+        500000000, // 500 USDC
+        currentTimestamp + 24 * 60 * 60
       );
 
       await expect(
@@ -98,7 +106,11 @@ describe("BTTCPadSale", function () {
           currentTimestamp,
           currentTimestamp + 12 * 60 * 60,
           currentTimestamp + 12 * 60 * 60,
-          50000000 // 50 USDC
+          currentTimestamp + 24 * 60 * 60,
+          50000000, // 50 USDC
+          50000000, // 50 USDC
+          500000000, // 500 USDC
+          currentTimestamp + 24 * 60 * 60
         )
       ).to.be.revertedWith("Sale already created");
     });
@@ -113,7 +125,11 @@ describe("BTTCPadSale", function () {
           currentTimestamp,
           currentTimestamp + 12 * 60 * 60,
           currentTimestamp + 12 * 60 * 60,
-          50000000 // 50 USDC
+          currentTimestamp + 24 * 60 * 60,
+          50000000, // 50 USDC
+          50000000, // 50 USDC
+          500000000, // 500 USDC
+          currentTimestamp + 24 * 60 * 60
         )
       ).to.be.revertedWith("Token price should be greater than 0");
 
@@ -121,12 +137,16 @@ describe("BTTCPadSale", function () {
         sale.setSaleParams(
           btp.address,
           saleOwner.address,
-          "250000",
-          0, // invalid amount
+          250000, // invalid price
+          0, // 5M
           currentTimestamp,
           currentTimestamp + 12 * 60 * 60,
           currentTimestamp + 12 * 60 * 60,
-          50000000 // 50 USDC
+          currentTimestamp + 24 * 60 * 60,
+          50000000, // 50 USDC
+          50000000, // 50 USDC
+          500000000, // 500 USDC
+          currentTimestamp + 24 * 60 * 60
         )
       ).to.be.revertedWith("Amount to sell should be greater than 0");
 
@@ -134,25 +154,33 @@ describe("BTTCPadSale", function () {
         sale.setSaleParams(
           btp.address,
           saleOwner.address,
-          "250000",
-          amountToSell,
+          "250000", // 0.25 USDC
+          amountToSell, // 5M
           currentTimestamp,
-          currentTimestamp - 12 * 60 * 60, // invalid sale end
+          currentTimestamp - 12 * 60 * 60,
           currentTimestamp + 12 * 60 * 60,
-          50000000 // 50 USDC
+          currentTimestamp + 24 * 60 * 60,
+          50000000, // 50 USDC
+          50000000, // 50 USDC
+          500000000, // 500 USDC
+          currentTimestamp + 24 * 60 * 60
         )
-      ).to.be.revertedWith("Sale end time should be in the future");
+      ).to.be.revertedWith("First round end time should be in the future");
 
       await expect(
         sale.setSaleParams(
           btp.address,
           saleOwner.address,
-          "250000",
-          amountToSell,
+          "250000", // 0.25 USDC
+          amountToSell, // 5M
           currentTimestamp,
           currentTimestamp + 12 * 60 * 60,
-          currentTimestamp - 12 * 60 * 60, // invalid unlock time
-          50000000 // 50 USDC
+          currentTimestamp + 12 * 60 * 60,
+          currentTimestamp + 24 * 60 * 60,
+          50000000, // 50 USDC
+          50000000, // 50 USDC
+          500000000, // 500 USDC
+          currentTimestamp - 24 * 60 * 60
         )
       ).to.be.revertedWith("Token unlock time should be in the future");
     });
@@ -172,7 +200,11 @@ describe("BTTCPadSale", function () {
         currentTimestamp,
         currentTimestamp + 12 * 60 * 60,
         currentTimestamp + 12 * 60 * 60,
-        50000000 // 50 USDC
+        currentTimestamp + 24 * 60 * 60,
+        50000000, // 50 USDC
+        50000000, // 50 USDC
+        500000000, // 500 USDC
+        currentTimestamp + 24 * 60 * 60
       );
 
       await sale.setVestingParams(
@@ -190,7 +222,11 @@ describe("BTTCPadSale", function () {
         currentTimestamp,
         currentTimestamp + 12 * 60 * 60,
         currentTimestamp + 12 * 60 * 60,
-        50000000 // 50 USDC
+        currentTimestamp + 24 * 60 * 60,
+        50000000, // 50 USDC
+        50000000, // 50 USDC
+        500000000, // 500 USDC
+        currentTimestamp + 24 * 60 * 60
       );
 
       await sale.setVestingParams(
@@ -215,7 +251,11 @@ describe("BTTCPadSale", function () {
         currentTimestamp,
         currentTimestamp + 12 * 60 * 60,
         currentTimestamp + 12 * 60 * 60,
-        50000000 // 50 USDC
+        currentTimestamp + 24 * 60 * 60,
+        50000000, // 50 USDC
+        50000000, // 50 USDC
+        500000000, // 500 USDC
+        currentTimestamp + 24 * 60 * 60
       );
 
       await expect(
@@ -235,7 +275,11 @@ describe("BTTCPadSale", function () {
         currentTimestamp,
         currentTimestamp + 12 * 60 * 60,
         currentTimestamp + 12 * 60 * 60,
-        50000000 // 50 USDC
+        currentTimestamp + 24 * 60 * 60,
+        50000000, // 50 USDC
+        50000000, // 50 USDC
+        500000000, // 500 USDC
+        currentTimestamp + 24 * 60 * 60
       );
 
       await expect(
@@ -276,10 +320,12 @@ describe("BTTCPadSale", function () {
         currentTimestamp,
         currentTimestamp + 12 * 60 * 60,
         currentTimestamp + 12 * 60 * 60,
-        50000000 // 50 USDC
+        currentTimestamp + 24 * 60 * 60,
+        50000000, // 50 USDC
+        50000000, // 50 USDC
+        500000000, // 500 USDC
+        currentTimestamp + 24 * 60 * 60
       );
-
-      console.log(await getBlockTimestamp());
 
       await expect(
         sale.setRegistrationTime(currentTimestamp - 10, currentTimestamp + 60)
@@ -312,7 +358,11 @@ describe("BTTCPadSale", function () {
         currentTimestamp,
         currentTimestamp + 12 * 60 * 60,
         currentTimestamp + 12 * 60 * 60,
-        50000000 // 50 USDC
+        currentTimestamp + 24 * 60 * 60,
+        50000000, // 50 USDC
+        50000000, // 50 USDC
+        500000000, // 500 USDC
+        currentTimestamp + 24 * 60 * 60
       );
 
       await sale.setVestingParams(
@@ -442,7 +492,11 @@ describe("BTTCPadSale", function () {
         currentTimestamp,
         currentTimestamp + 12 * 60 * 60,
         currentTimestamp + 12 * 60 * 60,
-        50000000 // 50 USDC
+        currentTimestamp + 24 * 60 * 60,
+        50000000, // 50 USDC
+        50000000, // 50 USDC
+        500000000, // 500 USDC
+        currentTimestamp + 24 * 60 * 60
       );
 
       await sale.setVestingParams(
@@ -515,7 +569,7 @@ describe("BTTCPadSale", function () {
       const tier = await sale.tierIdToTier(1);
       expect(tier.participants).to.be.eq(1);
       expect(tier.USDCDeposited).to.be.eq("100000000");
-      expect(await sale.numberOfParticipants()).to.be.eq(1);
+      expect(await sale.numOfParticipants()).to.be.eq(1);
     });
 
     it("Should succeed if whitelisted for lottery tier and allowed", async () => {
@@ -539,7 +593,7 @@ describe("BTTCPadSale", function () {
       const tier = await sale.tierIdToTier(0);
       expect(tier.participants).to.be.eq(2);
       expect(tier.USDCDeposited).to.be.eq("300000000");
-      expect(await sale.numberOfParticipants()).to.be.eq(2);
+      expect(await sale.numOfParticipants()).to.be.eq(2);
     });
 
     it("Should fail if already participated", async () => {
