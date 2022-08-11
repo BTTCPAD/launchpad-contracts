@@ -20,6 +20,19 @@ contract BttcPadSale {
     IERC20Extented public USDCToken =
         IERC20Extented(0xC0e296da19bBdcf960291C7AEf02c9F24D6fA1fd);
 
+    struct FirstRound {
+        uint256 startTime;
+        uint256 endTime;
+        uint256 minDeposit;
+    }
+
+    struct SecondRound {
+        uint256 startTime;
+        uint256 endTime;
+        uint256 minDeposit;
+        uint256 maxDeposit;
+    }
+
     struct Sale {
         IERC20Extented token;
         bool isCreated;
@@ -29,16 +42,22 @@ contract BttcPadSale {
         uint256 tokenPriceInUSDC;
         uint256 amountOfTokensToSell;
         uint256 totalUSDCRaised;
-        uint256 saleEnd;
-        uint256 saleStart;
         uint256 tokensUnlockTime;
-        uint256 minimumTokenDeposit;
+        FirstRound firstRound;
+        SecondRound secondRound;
+        bool isFirstRoundCalculated;
     }
 
     struct Participation {
         uint256 amountPaid;
         uint256 timeParticipated;
         uint256 tierId;
+        bool isTokenLeftWithdrawn;
+        bool[] isPortionWithdrawn;
+    }
+
+    struct Buy {
+        uint256 amountPaid;
         bool isTokenLeftWithdrawn;
         bool[] isPortionWithdrawn;
     }
@@ -71,10 +90,16 @@ contract BttcPadSale {
     address public admin;
 
     bool tokensDeposited;
-    uint256 public numberOfParticipants;
+
+    uint256 public numOfParticipants;
     mapping(address => Participation) public userToParticipation;
-    mapping(address => uint256) public addressToRoundRegisteredFor;
     mapping(address => bool) public isParticipated;
+    uint256 tokensRemaining;
+
+    uint256 public numOfBuyers;
+    mapping(address => Buy) public userToBuy;
+    mapping(address => bool) public isBuyer;
+
     mapping(address => WhitelistUser) public whitelist;
 
     uint256[] public vestingPortionsUnlockTime;
@@ -132,10 +157,14 @@ contract BttcPadSale {
         address _saleOwner,
         uint256 _tokenPriceInUSDC,
         uint256 _amountOfTokensToSell,
-        uint256 _saleStart,
-        uint256 _saleEnd,
-        uint256 _tokensUnlockTime,
-        uint256 _minimumTokenDeposit
+        uint256 _firstRoundStart,
+        uint256 _firstRoundEnd,
+        uint256 _secondRoundStart,
+        uint256 _secondRoundEnd,
+        uint256 _firstRoundMinDeposit,
+        uint256 _secondRoundMinDeposit,
+        uint256 _secondRoundMaxDeposit,
+        uint256 _tokensUnlockTime
     ) external onlyAdmin {
         require(!sale.isCreated, "Sale already created");
         require(_saleOwner != address(0), "owner can`t be 0");
@@ -145,8 +174,8 @@ contract BttcPadSale {
             "Amount to sell should be greater than 0"
         );
         require(
-            _saleEnd > block.timestamp,
-            "Sale end time should be in the future"
+            _firstRoundEnd > block.timestamp,
+            "First round end time should be in the future"
         );
         require(
             _tokensUnlockTime > block.timestamp,
@@ -158,10 +187,18 @@ contract BttcPadSale {
         sale.saleOwner = _saleOwner;
         sale.tokenPriceInUSDC = _tokenPriceInUSDC;
         sale.amountOfTokensToSell = _amountOfTokensToSell;
-        sale.saleEnd = _saleEnd;
-        sale.saleStart = _saleStart;
         sale.tokensUnlockTime = _tokensUnlockTime;
-        sale.minimumTokenDeposit = _minimumTokenDeposit;
+        sale.firstRound = FirstRound({
+            startTime: _firstRoundStart,
+            endTime: _firstRoundEnd,
+            minDeposit: _firstRoundMinDeposit
+        });
+        sale.secondRound = SecondRound({
+            startTime: _secondRoundStart,
+            endTime: _secondRoundEnd,
+            minDeposit: _secondRoundMinDeposit,
+            maxDeposit: _secondRoundMaxDeposit
+        });
     }
 
     function setRegistrationTime(
@@ -178,7 +215,7 @@ contract BttcPadSale {
             "Registration end time should be after start time"
         );
         require(
-            _registrationTimeEnds < sale.saleEnd,
+            _registrationTimeEnds < sale.firstRound.endTime,
             "Registration end time should be before sale end"
         );
 
@@ -227,7 +264,7 @@ contract BttcPadSale {
 
     function updateTokenPriceInUSDC(uint256 price) external onlyAdmin {
         require(price > 0, "Price == 0");
-        require(sale.saleStart > block.timestamp, "Sale started");
+        require(sale.firstRound.startTime > block.timestamp, "Sale started");
         sale.tokenPriceInUSDC = price;
     }
 
@@ -294,11 +331,11 @@ contract BttcPadSale {
     }
 
     function participate(uint256 amount) external payable {
-        require(sale.isCreated, "Wait sale create");
+        require(sale.isCreated, "Sale not created");
         require(
-            block.timestamp >= sale.saleStart &&
-                block.timestamp <= sale.saleEnd,
-            "Sale not active"
+            block.timestamp >= sale.firstRound.startTime &&
+                block.timestamp <= sale.firstRound.endTime,
+            "First round is not active"
         );
         require(!isParticipated[msg.sender], "Participate only once");
 
@@ -310,7 +347,7 @@ contract BttcPadSale {
             "Amount need to be divide by 2"
         );
         require(
-            amount >= sale.minimumTokenDeposit,
+            amount >= sale.firstRound.minDeposit,
             "Can't deposit less than minimum"
         );
 
@@ -341,7 +378,67 @@ contract BttcPadSale {
         t.USDCDeposited = t.USDCDeposited + amount;
         userToParticipation[msg.sender] = p;
         isParticipated[msg.sender] = true;
-        numberOfParticipants++;
+        numOfParticipants++;
+
+        USDCToken.safeTransferFrom(msg.sender, address(this), amount);
+    }
+
+    function buy(uint256 amount) external payable {
+        require(sale.isFirstRoundCalculated, "First round not calculated yet");
+        require(
+            block.timestamp >= sale.secondRound.startTime &&
+                block.timestamp <= sale.secondRound.endTime,
+            "Second round is not active"
+        );
+        require(msg.sender == tx.origin, "Only direct calls");
+        require(amount > 0, "Can't buy 0 tokens");
+        require(
+            (amount / (10**USDCToken.decimals())) % 2 == 0,
+            "Amount need to be divide by 2"
+        );
+
+        require(
+            amount >= sale.secondRound.minDeposit,
+            "Can't deposit less than minimum"
+        );
+
+        uint256 tokenAmount = (amount / sale.tokenPriceInUSDC) *
+            10**sale.token.decimals();
+
+        require(tokenAmount <= tokensRemaining, "Not enough tokens remaining");
+
+        if (isBuyer[msg.sender]) {
+            Buy storage b = userToBuy[msg.sender];
+
+            require(
+                b.amountPaid + amount < sale.secondRound.maxDeposit,
+                "Can't deposit more than maximum"
+            );
+
+            b.amountPaid = b.amountPaid + amount;
+        } else {
+            require(
+                amount < sale.secondRound.maxDeposit,
+                "Can't deposit more than maximum"
+            );
+
+            bool[] memory _isPortionWithdrawn = new bool[](
+                vestingPortionsUnlockTime.length
+            );
+
+            Buy memory b = Buy({
+                amountPaid: amount,
+                isTokenLeftWithdrawn: false,
+                isPortionWithdrawn: _isPortionWithdrawn
+            });
+
+            userToBuy[msg.sender] = b;
+            isBuyer[msg.sender] = true;
+            numOfBuyers++;
+        }
+
+        sale.totalUSDCRaised = sale.totalUSDCRaised + amount;
+        tokensRemaining = tokensRemaining - tokenAmount;
 
         USDCToken.safeTransferFrom(msg.sender, address(this), amount);
     }
@@ -351,30 +448,49 @@ contract BttcPadSale {
             block.timestamp >= sale.tokensUnlockTime,
             "Tokens cann`t be withdrawn"
         );
-        require(portionId < vestingPercentPerPortion.length);
+        require(
+            portionId < vestingPercentPerPortion.length,
+            "Invalid portion ID"
+        );
+        require(
+            vestingPortionsUnlockTime[portionId] <= block.timestamp,
+            "Portion not unlocked"
+        );
 
-        Participation storage p = userToParticipation[msg.sender];
+        uint256 amountToWithdraw = 0;
 
-        if (!p.isTokenLeftWithdrawn) {
-            withdrawLeftoverForUser(msg.sender);
-            p.isTokenLeftWithdrawn = true;
+        if (isParticipated[msg.sender]) {
+            Participation storage p = userToParticipation[msg.sender];
+
+            if (!p.isTokenLeftWithdrawn) {
+                withdrawLeftoverForUser(msg.sender);
+                p.isTokenLeftWithdrawn = true;
+            }
+
+            if (!p.isPortionWithdrawn[portionId]) {
+                p.isPortionWithdrawn[portionId] = true;
+                uint256 amountFirstRound = calculateAmountWithdrawing(
+                    msg.sender,
+                    vestingPercentPerPortion[portionId]
+                );
+                amountToWithdraw = amountToWithdraw + amountFirstRound;
+            }
         }
 
-        if (
-            !p.isPortionWithdrawn[portionId] &&
-            vestingPortionsUnlockTime[portionId] <= block.timestamp
-        ) {
-            p.isPortionWithdrawn[portionId] = true;
-            uint256 amountWithdrawing = calculateAmountWithdrawing(
-                msg.sender,
-                vestingPercentPerPortion[portionId]
-            );
-
-            if (amountWithdrawing > 0) {
-                sale.token.safeTransfer(msg.sender, amountWithdrawing);
+        if (isBuyer[msg.sender]) {
+            Buy storage b = userToBuy[msg.sender];
+            if (!b.isPortionWithdrawn[portionId]) {
+                b.isPortionWithdrawn[portionId] = true;
+                uint256 amountSecondRound = ((b.amountPaid /
+                    sale.tokenPriceInUSDC) *
+                    10**sale.token.decimals() *
+                    vestingPercentPerPortion[portionId]) / 100;
+                amountToWithdraw = amountToWithdraw + amountSecondRound;
             }
-        } else {
-            revert("Tokens withdrawn or portion not unlocked");
+        }
+
+        if (amountToWithdraw > 0) {
+            sale.token.safeTransfer(msg.sender, amountToWithdraw);
         }
     }
 
@@ -395,27 +511,50 @@ contract BttcPadSale {
     function withdrawMultiplePortions(uint256[] calldata portionIds) external {
         uint256 totalToWithdraw = 0;
 
-        Participation storage p = userToParticipation[msg.sender];
+        if (isParticipated[msg.sender]) {
+            Participation storage p = userToParticipation[msg.sender];
 
-        if (!p.isTokenLeftWithdrawn) {
-            withdrawLeftoverForUser(msg.sender);
-            p.isTokenLeftWithdrawn = true;
+            if (!p.isTokenLeftWithdrawn) {
+                withdrawLeftoverForUser(msg.sender);
+                p.isTokenLeftWithdrawn = true;
+            }
+
+            for (uint256 i = 0; i < portionIds.length; i++) {
+                uint256 portionId = portionIds[i];
+                require(portionId < vestingPercentPerPortion.length);
+
+                if (
+                    !p.isPortionWithdrawn[portionId] &&
+                    vestingPortionsUnlockTime[portionId] <= block.timestamp
+                ) {
+                    p.isPortionWithdrawn[portionId] = true;
+                    uint256 amountWithdrawing = calculateAmountWithdrawing(
+                        msg.sender,
+                        vestingPercentPerPortion[portionId]
+                    );
+                    totalToWithdraw = totalToWithdraw + amountWithdrawing;
+                }
+            }
         }
 
-        for (uint256 i = 0; i < portionIds.length; i++) {
-            uint256 portionId = portionIds[i];
-            require(portionId < vestingPercentPerPortion.length);
+        if (isBuyer[msg.sender]) {
+            Buy storage b = userToBuy[msg.sender];
 
-            if (
-                !p.isPortionWithdrawn[portionId] &&
-                vestingPortionsUnlockTime[portionId] <= block.timestamp
-            ) {
-                p.isPortionWithdrawn[portionId] = true;
-                uint256 amountWithdrawing = calculateAmountWithdrawing(
-                    msg.sender,
-                    vestingPercentPerPortion[portionId]
-                );
-                totalToWithdraw = totalToWithdraw + amountWithdrawing;
+            for (uint256 i = 0; i < portionIds.length; i++) {
+                uint256 portionId = portionIds[i];
+                require(portionId < vestingPercentPerPortion.length);
+
+                if (
+                    !b.isPortionWithdrawn[portionId] &&
+                    vestingPortionsUnlockTime[portionId] <= block.timestamp
+                ) {
+                    b.isPortionWithdrawn[portionId] = true;
+                    uint256 amountWithdrawing = ((b.amountPaid /
+                        sale.tokenPriceInUSDC) *
+                        10**sale.token.decimals() *
+                        vestingPercentPerPortion[portionId]) / 100;
+                    totalToWithdraw = totalToWithdraw + amountWithdrawing;
+                }
             }
         }
 
@@ -433,25 +572,38 @@ contract BttcPadSale {
     }
 
     function withdrawEarningsInternal() internal {
-        require(block.timestamp >= sale.saleEnd);
-        require(!sale.earningsWithdrawn);
+        require(
+            block.timestamp >= sale.secondRound.endTime,
+            "Sale not finished"
+        );
+        require(!sale.earningsWithdrawn, "Earnings already withdrawn");
+        require(sale.isFirstRoundCalculated, "First round not caculated yet");
         sale.earningsWithdrawn = true;
-        uint256 totalProfit = sale.totalUSDCRaised;
+        uint256 totalProfit = ((sale.amountOfTokensToSell - tokensRemaining) *
+            sale.tokenPriceInUSDC) / 10**sale.token.decimals();
         USDCToken.safeTransfer(msg.sender, totalProfit);
     }
 
     function withdrawLeftoverInternal() internal {
-        require(block.timestamp >= sale.saleEnd);
-        require(!sale.leftoverWithdrawn);
+        require(
+            block.timestamp >= sale.secondRound.endTime,
+            "Sale not finished"
+        );
+        require(!sale.leftoverWithdrawn, "Leftover already withdrawn");
+        require(sale.isFirstRoundCalculated, "First round not caculated yet");
         sale.leftoverWithdrawn = true;
-        uint256 totalTokensSold = calculateTotalTokensSold();
-        uint256 leftover = sale.amountOfTokensToSell - totalTokensSold;
-        if (leftover > 0) {
-            sale.token.safeTransfer(msg.sender, leftover);
+        if (tokensRemaining > 0) {
+            sale.token.safeTransfer(msg.sender, tokensRemaining);
         }
     }
 
-    function calculateTotalTokensSold() internal view returns (uint256) {
+    function calculateFirstRoundSale() public onlyAdmin {
+        require(
+            block.timestamp > sale.firstRound.endTime,
+            "First round is not finished"
+        );
+        require(!sale.isFirstRoundCalculated, "Already calculated");
+
         uint256 totalTokensSold = 0;
 
         for (uint256 i = 0; i < tierIdToTier.length; i++) {
@@ -474,7 +626,8 @@ contract BttcPadSale {
             }
         }
 
-        return (totalTokensSold);
+        tokensRemaining = sale.amountOfTokensToSell - totalTokensSold;
+        sale.isFirstRoundCalculated = true;
     }
 
     function isWhitelisted() external view returns (bool) {
