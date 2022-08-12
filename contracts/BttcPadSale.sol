@@ -94,7 +94,7 @@ contract BttcPadSale {
     uint256 public numOfParticipants;
     mapping(address => Participation) public userToParticipation;
     mapping(address => bool) public isParticipated;
-    uint256 tokensRemaining;
+    uint256 public tokensRemaining;
 
     uint256 public numOfBuyers;
     mapping(address => Buy) public userToBuy;
@@ -180,6 +180,10 @@ contract BttcPadSale {
         require(
             _tokensUnlockTime > block.timestamp,
             "Token unlock time should be in the future"
+        );
+        require(
+            _tokensUnlockTime >= _secondRoundEnd,
+            "Token unlock time should be after second round end"
         );
 
         sale.token = IERC20Extented(_token);
@@ -652,6 +656,9 @@ contract BttcPadSale {
         uint256 tokensForUser = 0;
         uint256 tokensPerTier = (t.tierWeight * sale.amountOfTokensToSell) /
             totalTierWeight;
+        uint256 maxUSDC = (tokensPerTier * sale.tokenPriceInUSDC) /
+            10**sale.token.decimals();
+
         uint256 maximunTokensForUser = (tokensPerTier * tokenPercent) /
             t.participants /
             100;
@@ -659,7 +666,9 @@ contract BttcPadSale {
             (10**sale.token.decimals()) *
             tokenPercent) / 100;
 
-        if (maximunTokensForUser >= userTokenWish) {
+        if (
+            t.USDCDeposited < maxUSDC || maximunTokensForUser >= userTokenWish
+        ) {
             tokensForUser = userTokenWish;
         } else {
             tokensForUser = maximunTokensForUser;

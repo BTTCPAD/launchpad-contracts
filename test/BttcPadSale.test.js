@@ -1,5 +1,5 @@
 const { expect } = require("chai");
-const { ethers } = require("hardhat");
+const { ethers, web3 } = require("hardhat");
 
 const amountToSell = "5000000000000000000000000"; // 5M
 
@@ -15,12 +15,13 @@ function timeout(ms) {
 }
 
 describe("BTTCPadSale", function () {
-  let deployer, saleOwner, buyer1, buyer2, buyer3;
+  let deployer, saleOwner, buyer1, buyer2, buyer3, buyer4, buyer5;
   let usdc, btp, staking, sale;
   let currentTimestamp;
 
   beforeEach(async () => {
-    [deployer, saleOwner, buyer1, buyer2, buyer3] = await ethers.getSigners();
+    [deployer, saleOwner, buyer1, buyer2, buyer3, buyer4, buyer5] =
+      await ethers.getSigners();
 
     const USDC = await ethers.getContractFactory("USDC_t");
     usdc = await USDC.deploy("USD Coin_TRON", "USDC_t", 6, deployer.address);
@@ -609,67 +610,159 @@ describe("BTTCPadSale", function () {
     });
   });
 
-  // describe("Register for Sale", () => {
-  //   beforeEach(async () => {
-  //     currentTimestamp = Math.floor(Date.now() / 1000.0);
+  describe("Calculate and withdraw", () => {
+    let saleToken;
+    beforeEach(async () => {
+      const depositUSDC = async (account, amount) => {
+        await usdc.deposit(
+          account.address,
+          ethers.utils.solidityPack(["uint256"], [amount])
+        );
+        await usdc.connect(account).approve(sale.address, amount);
+      };
 
-  //     // set sale params
-  //     await sale.setSaleParams(
-  //       btp.address,
-  //       saleOwner.address,
-  //       "250000", // 0.25 USDC
-  //       amountToSell, // 5M
-  //       currentTimestamp,
-  //       currentTimestamp + 12 * 60 * 60,
-  //       currentTimestamp + 12 * 60 * 60,
-  //       50000000 // 50 USDC
-  //     );
+      const depositAndStakeBTP = async (account, amount) => {
+        await btp.transfer(account.address, amount); // 100 BTP
+        await btp.connect(account).approve(staking.address, amount);
+        await staking.connect(account).deposit(amount);
+      };
 
-  //     await sale.setVestingParams(
-  //       [currentTimestamp + 12 * 60 * 60, currentTimestamp + 24 * 60 * 60],
-  //       [30, 70]
-  //     );
+      const ERC20Token = await ethers.getContractFactory("ERC20Token");
+      saleToken = await ERC20Token.deploy();
+      await saleToken.deployed();
 
-  //     await sale.setRegistrationTime(currentTimestamp + 10, currentTimestamp + 60);
+      await depositUSDC(buyer1, "1000000000"); // 1000 USC each
+      await depositUSDC(buyer2, "1000000000");
+      await depositUSDC(buyer3, "1000000000");
+      await depositUSDC(buyer4, "1000000000");
+      await depositUSDC(buyer5, "1000000000");
 
-  //     await sale.addTiers(
-  //       [50, 30],
-  //       [
-  //         "0",
-  //         "1000000000000000000000", // 1000 tokens
-  //       ],
-  //       [true, false]
-  //     );
+      await depositAndStakeBTP(buyer1, "100000000000000000000"); // 100 BTP
+      await depositAndStakeBTP(buyer2, "200000000000000000000"); // 200 BTP
+      await depositAndStakeBTP(buyer3, "300000000000000000000"); // 300 BTP
+      await depositAndStakeBTP(buyer4, "1000000000000000000000"); // 1000 BTP
+      await depositAndStakeBTP(buyer5, "2000000000000000000000"); // 2000 BTP
 
-  //     await btp.transfer(saleOwner.address, amountToSell);
-  //     await btp.connect(saleOwner).approve(sale.address, amountToSell);
-  //     await sale.connect(saleOwner).depositTokens();
-  //   });
+      currentTimestamp = await getBlockTimestamp();
 
-  //   it("Registration should work", async function () {
-  //     await usdc.deposit(
-  //       buyer1.address,
-  //       ethers.utils.solidityPack(["uint256"], [500000000])
-  //     );
-  //     await usdc.connect(buyer1).approve(sale.address, 50000000);
+      // set sale params
+      await sale.setSaleParams(
+        saleToken.address,
+        saleOwner.address,
+        "1000000", // 1 USDC
+        "2000000000000000000000", // 2000 tokens
+        currentTimestamp,
+        currentTimestamp + 17,
+        currentTimestamp + 18,
+        currentTimestamp + 24,
+        100000000, // 100 USDC
+        100000000, // 100 USDC
+        1000000000, // 1000 USDC
+        currentTimestamp + 24
+      );
 
-  //     console.log(await usdc.balanceOf(buyer1.address));
+      await sale.setVestingParams(
+        [currentTimestamp + 24, currentTimestamp + 27],
+        [40, 60]
+      );
 
-  //     await sale.connect(buyer1).registerForSale();
-  //     // await sale.connect(buyer1).participate(50000000);
+      await sale.setRegistrationTime(
+        currentTimestamp + 5,
+        currentTimestamp + 11
+      );
 
-  //     console.log(await sale.tierIdToTier(0));
-  //     console.log(await sale.tierIdToTier(1));
-  //     console.log(await sale.whitelist(buyer1.address));
-  //     console.log(await sale.userToParticipation(buyer1.address));
-  //     console.log(await sale.getLotteryWallets(0));
+      await sale.addTiers(
+        [60, 40],
+        [
+          "100000000000000000000", // 100 BTP
+          "1000000000000000000000", // 1000 BTP
+        ],
+        [true, false]
+      );
 
-  //     await sale.runLottery(0, 1);
-  //     console.log(await sale.whitelist(buyer1.address));
-  //     console.log(await sale.userToParticipation(buyer1.address));
-  //     console.log(await sale.getLotteryWallets(0));
+      await saleToken.transfer(saleOwner.address, "2000000000000000000000");
+      await saleToken
+        .connect(saleOwner)
+        .approve(sale.address, "2000000000000000000000");
+      await sale.connect(saleOwner).depositTokens();
+    });
 
-  //     console.log(await sale.registration());
-  //   });
-  // });
+    it("Sale amount should match", async function () {
+      await sale.connect(buyer1).registerForSale();
+      await sale.connect(buyer2).registerForSale();
+      await sale.connect(buyer3).registerForSale();
+      await sale.connect(buyer4).registerForSale();
+      await sale.connect(buyer5).registerForSale();
+
+      // await timeout(3000);
+      await sale.runLottery(0, 3);
+
+      await sale.connect(buyer1).participate("100000000"); // 100
+      await sale.connect(buyer2).participate("200000000"); // 200
+      await sale.connect(buyer3).participate("500000000"); // 500
+      await sale.connect(buyer4).participate("200000000"); // 200
+      await sale.connect(buyer5).participate("700000000"); // 400
+
+      await sale.calculateFirstRoundSale();
+
+      expect(await sale.tokensRemaining()).to.eq(web3.utils.toWei("400"));
+
+      await sale.connect(buyer1).buy("100000000"); // 100 + 100
+      await expect(sale.connect(buyer4).buy("400000000")).to.be.revertedWith(
+        "Not enough tokens remaining"
+      );
+      await sale.connect(buyer5).buy("100000000"); // 400 + 100
+      await sale.connect(buyer1).buy("100000000"); // 100 + 100 + 100
+
+      await expect(sale.connect(buyer1).withdrawTokens(0)).to.be.revertedWith(
+        "Tokens cann`t be withdrawn"
+      );
+      await timeout(1000);
+      await sale.connect(buyer1).withdrawTokens(0);
+      await expect(sale.connect(buyer1).withdrawTokens(1)).to.be.revertedWith(
+        "Portion not unlocked"
+      );
+      expect(await saleToken.balanceOf(buyer1.address)).to.eq(
+        web3.utils.toWei("120")
+      ); // 300 * 0.4
+
+      await sale.connect(buyer3).withdrawTokens(0);
+      expect(await saleToken.balanceOf(buyer3.address)).to.eq(
+        web3.utils.toWei("200")
+      ); // 500 * 0.4
+
+      await sale.connect(buyer5).withdrawTokens(0);
+      expect(await saleToken.balanceOf(buyer5.address)).to.eq(
+        web3.utils.toWei("200")
+      ); // 500 * 0.4
+
+      expect(await sale.tokensRemaining()).to.eq(web3.utils.toWei("100"));
+
+      await sale.connect(buyer1).withdrawTokens(0);
+      expect(await saleToken.balanceOf(buyer1.address)).to.eq(
+        web3.utils.toWei("120")
+      ); // 300 * 0.4
+
+      expect(await usdc.balanceOf(buyer1.address)).to.eq("700000000");
+      expect(await usdc.balanceOf(buyer2.address)).to.eq("800000000");
+      expect(await usdc.balanceOf(buyer3.address)).to.eq("500000000");
+      expect(await usdc.balanceOf(buyer4.address)).to.eq("800000000");
+      expect(await usdc.balanceOf(buyer5.address)).to.eq("500000000");
+
+      await sale.connect(buyer1).withdrawTokens(1);
+      expect(await saleToken.balanceOf(buyer1.address)).to.eq(
+        web3.utils.toWei("300")
+      );
+
+      await sale.connect(buyer3).withdrawTokens(1);
+      expect(await saleToken.balanceOf(buyer3.address)).to.eq(
+        web3.utils.toWei("500")
+      );
+
+      await sale.connect(buyer5).withdrawTokens(1);
+      expect(await saleToken.balanceOf(buyer5.address)).to.eq(
+        web3.utils.toWei("500")
+      );
+    });
+  });
 });

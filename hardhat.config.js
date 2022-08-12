@@ -1,6 +1,7 @@
 require("@nomiclabs/hardhat-waffle");
 require("hardhat-deploy");
 require("@nomiclabs/hardhat-etherscan");
+require("@nomiclabs/hardhat-web3");
 
 const { resolve } = require("path");
 const { config: dotenvConfig } = require("dotenv");
