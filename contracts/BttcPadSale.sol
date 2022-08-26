@@ -45,7 +45,7 @@ contract BttcPadSale {
         uint256 tokensUnlockTime;
         FirstRound firstRound;
         SecondRound secondRound;
-        bool isFirstRoundCalculated;
+        bool isTokensForTiersCalculated;
     }
 
     struct Participation {
@@ -58,7 +58,6 @@ contract BttcPadSale {
 
     struct Buy {
         uint256 amountPaid;
-        bool isTokenLeftWithdrawn;
         bool[] isPortionWithdrawn;
     }
 
@@ -68,6 +67,7 @@ contract BttcPadSale {
         uint256 USDCDeposited;
         uint256 minToStake;
         uint256 maxToStake;
+        uint256 tokensForTier;
         bool isLottery;
         address[] lotteryWallets;
     }
@@ -94,7 +94,7 @@ contract BttcPadSale {
     uint256 public numOfParticipants;
     mapping(address => Participation) public userToParticipation;
     mapping(address => bool) public isParticipated;
-    uint256 public tokensRemaining;
+    uint256 public tokensUnsold;
 
     uint256 public numOfBuyers;
     mapping(address => Buy) public userToBuy;
@@ -317,6 +317,7 @@ contract BttcPadSale {
                 USDCDeposited: 0,
                 minToStake: tierPoints[i],
                 maxToStake: maxToStake,
+                tokensForTier: 0,
                 isLottery: isLottery[i],
                 lotteryWallets: new address[](0)
             });
@@ -388,7 +389,10 @@ contract BttcPadSale {
     }
 
     function buy(uint256 amount) external payable {
-        require(sale.isFirstRoundCalculated, "First round not calculated yet");
+        require(
+            sale.isTokensForTiersCalculated,
+            "Tokens for tiers not calculated yet"
+        );
         require(
             block.timestamp >= sale.secondRound.startTime &&
                 block.timestamp <= sale.secondRound.endTime,
@@ -409,7 +413,7 @@ contract BttcPadSale {
         uint256 tokenAmount = (amount / sale.tokenPriceInUSDC) *
             10**sale.token.decimals();
 
-        require(tokenAmount <= tokensRemaining, "Not enough tokens remaining");
+        require(tokenAmount <= tokensUnsold, "Not enough tokens remaining");
 
         if (isBuyer[msg.sender]) {
             Buy storage b = userToBuy[msg.sender];
@@ -432,7 +436,6 @@ contract BttcPadSale {
 
             Buy memory b = Buy({
                 amountPaid: amount,
-                isTokenLeftWithdrawn: false,
                 isPortionWithdrawn: _isPortionWithdrawn
             });
 
@@ -442,7 +445,7 @@ contract BttcPadSale {
         }
 
         sale.totalUSDCRaised = sale.totalUSDCRaised + amount;
-        tokensRemaining = tokensRemaining - tokenAmount;
+        tokensUnsold = tokensUnsold - tokenAmount;
 
         USDCToken.safeTransferFrom(msg.sender, address(this), amount);
     }
@@ -450,7 +453,7 @@ contract BttcPadSale {
     function withdrawTokens(uint256 portionId) external {
         require(
             block.timestamp >= sale.tokensUnlockTime,
-            "Tokens cann`t be withdrawn"
+            "Tokens cannot be withdrawn"
         );
         require(
             portionId < vestingPercentPerPortion.length,
@@ -581,9 +584,12 @@ contract BttcPadSale {
             "Sale not finished"
         );
         require(!sale.earningsWithdrawn, "Earnings already withdrawn");
-        require(sale.isFirstRoundCalculated, "First round not caculated yet");
+        require(
+            sale.isTokensForTiersCalculated,
+            "Tokens for tiers not caculated yet"
+        );
         sale.earningsWithdrawn = true;
-        uint256 totalProfit = ((sale.amountOfTokensToSell - tokensRemaining) *
+        uint256 totalProfit = ((sale.amountOfTokensToSell - tokensUnsold) *
             sale.tokenPriceInUSDC) / 10**sale.token.decimals();
         USDCToken.safeTransfer(msg.sender, totalProfit);
     }
@@ -594,24 +600,28 @@ contract BttcPadSale {
             "Sale not finished"
         );
         require(!sale.leftoverWithdrawn, "Leftover already withdrawn");
-        require(sale.isFirstRoundCalculated, "First round not caculated yet");
-        sale.leftoverWithdrawn = true;
-        if (tokensRemaining > 0) {
-            sale.token.safeTransfer(msg.sender, tokensRemaining);
+        require(
+            sale.isTokensForTiersCalculated,
+            "First round not caculated yet"
+        );
+
+        if (tokensUnsold > 0) {
+            sale.leftoverWithdrawn = true;
+            sale.token.safeTransfer(msg.sender, tokensUnsold);
         }
     }
 
-    function calculateFirstRoundSale() public onlyAdmin {
+    function calculateTokensForTiers() public onlyAdmin {
         require(
             block.timestamp > sale.firstRound.endTime,
             "First round is not finished"
         );
-        require(!sale.isFirstRoundCalculated, "Already calculated");
+        require(!sale.isTokensForTiersCalculated, "Already calculated");
 
-        uint256 totalTokensSold = 0;
+        tokensUnsold = sale.amountOfTokensToSell;
 
         for (uint256 i = 0; i < tierIdToTier.length; i++) {
-            Tier memory t = tierIdToTier[i];
+            Tier storage t = tierIdToTier[i];
 
             uint256 tokensPerTier = (t.tierWeight * sale.amountOfTokensToSell) /
                 totalTierWeight;
@@ -621,17 +631,42 @@ contract BttcPadSale {
                     10**sale.token.decimals() <=
                 t.USDCDeposited
             ) {
-                totalTokensSold = totalTokensSold + tokensPerTier;
+                t.tokensForTier = tokensPerTier;
             } else {
-                totalTokensSold =
-                    totalTokensSold +
+                t.tokensForTier =
                     (t.USDCDeposited / sale.tokenPriceInUSDC) *
                     10**sale.token.decimals();
             }
+            tokensUnsold = tokensUnsold - t.tokensForTier;
         }
 
-        tokensRemaining = sale.amountOfTokensToSell - totalTokensSold;
-        sale.isFirstRoundCalculated = true;
+        if (tokensUnsold > 0) {
+            for (uint256 i = 0; i < tierIdToTier.length; i++) {
+                Tier storage t = tierIdToTier[tierIdToTier.length - 1 - i];
+
+                if (
+                    (t.tokensForTier * sale.tokenPriceInUSDC) /
+                        10**sale.token.decimals() <
+                    t.USDCDeposited
+                ) {
+                    uint256 USDCLeft = t.USDCDeposited -
+                        (t.tokensForTier * sale.tokenPriceInUSDC) /
+                        10**sale.token.decimals();
+
+                    uint256 tokensToAdd = (USDCLeft / sale.tokenPriceInUSDC) *
+                        10**sale.token.decimals();
+                    if (tokensUnsold >= tokensToAdd) {
+                        t.tokensForTier = t.tokensForTier + tokensToAdd;
+                        tokensUnsold = tokensUnsold - tokensToAdd;
+                    } else {
+                        t.tokensForTier = t.tokensForTier + tokensUnsold;
+                        break;
+                    }
+                }
+            }
+        }
+
+        sale.isTokensForTiersCalculated = true;
     }
 
     function isWhitelisted() external view returns (bool) {
@@ -653,26 +688,11 @@ contract BttcPadSale {
         Participation memory p = userToParticipation[userAddress];
         Tier memory t = tierIdToTier[uint256(p.tierId)];
 
-        uint256 tokensForUser = 0;
-        uint256 tokensPerTier = (t.tierWeight * sale.amountOfTokensToSell) /
-            totalTierWeight;
-        uint256 maxUSDC = (tokensPerTier * sale.tokenPriceInUSDC) /
-            10**sale.token.decimals();
-
-        uint256 maximunTokensForUser = (tokensPerTier * tokenPercent) /
-            t.participants /
+        uint256 tokensForUser = (t.tokensForTier *
+            p.amountPaid *
+            tokenPercent) /
+            t.USDCDeposited /
             100;
-        uint256 userTokenWish = ((p.amountPaid / sale.tokenPriceInUSDC) *
-            (10**sale.token.decimals()) *
-            tokenPercent) / 100;
-
-        if (
-            t.USDCDeposited < maxUSDC || maximunTokensForUser >= userTokenWish
-        ) {
-            tokensForUser = userTokenWish;
-        } else {
-            tokensForUser = maximunTokensForUser;
-        }
 
         return (tokensForUser);
     }
@@ -681,14 +701,11 @@ contract BttcPadSale {
         address userAddress,
         uint256 tokenPercent
     ) public view returns (uint256) {
-        Participation memory p = userToParticipation[userAddress];
-        Tier memory t = tierIdToTier[uint256(p.tierId)];
+        uint256 tokensForUser = calculateAmountWithdrawing(
+            userAddress,
+            tokenPercent
+        );
 
-        uint256 tokensPerTier = (t.tierWeight * sale.amountOfTokensToSell) /
-            totalTierWeight;
-        uint256 tokensForUser = (tokensPerTier * tokenPercent) /
-            t.participants /
-            100;
         return (tokensForUser);
     }
 

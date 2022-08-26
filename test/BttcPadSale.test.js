@@ -699,23 +699,23 @@ describe("BTTCPadSale", function () {
 
       await sale.connect(buyer1).participate("100000000"); // 100
       await sale.connect(buyer2).participate("200000000"); // 200
-      await sale.connect(buyer3).participate("500000000"); // 500
-      await sale.connect(buyer4).participate("200000000"); // 200
-      await sale.connect(buyer5).participate("700000000"); // 400
+      await sale.connect(buyer3).participate("300000000"); // 500
+      await sale.connect(buyer4).participate("300000000"); // 300
+      await sale.connect(buyer5).participate("700000000"); // 700
 
-      await sale.calculateFirstRoundSale();
+      await sale.calculateTokensForTiers();
 
-      expect(await sale.tokensRemaining()).to.eq(web3.utils.toWei("400"));
+      expect(await sale.tokensUnsold()).to.eq(web3.utils.toWei("400"));
 
       await sale.connect(buyer1).buy("100000000"); // 100 + 100
       await expect(sale.connect(buyer4).buy("400000000")).to.be.revertedWith(
         "Not enough tokens remaining"
       );
-      await sale.connect(buyer5).buy("100000000"); // 400 + 100
+      await sale.connect(buyer5).buy("100000000"); // 700 + 100
       await sale.connect(buyer1).buy("100000000"); // 100 + 100 + 100
 
       await expect(sale.connect(buyer1).withdrawTokens(0)).to.be.revertedWith(
-        "Tokens cann`t be withdrawn"
+        "Tokens cannot be withdrawn"
       );
       await timeout(1000);
       await sale.connect(buyer1).withdrawTokens(0);
@@ -728,15 +728,15 @@ describe("BTTCPadSale", function () {
 
       await sale.connect(buyer3).withdrawTokens(0);
       expect(await saleToken.balanceOf(buyer3.address)).to.eq(
-        web3.utils.toWei("200")
-      ); // 500 * 0.4
+        web3.utils.toWei("120")
+      ); // 300 * 0.4
 
       await sale.connect(buyer5).withdrawTokens(0);
       expect(await saleToken.balanceOf(buyer5.address)).to.eq(
-        web3.utils.toWei("200")
-      ); // 500 * 0.4
+        web3.utils.toWei("320")
+      ); // 800 * 0.4
 
-      expect(await sale.tokensRemaining()).to.eq(web3.utils.toWei("100"));
+      expect(await sale.tokensUnsold()).to.eq(web3.utils.toWei("100"));
 
       await sale.connect(buyer1).withdrawTokens(0);
       expect(await saleToken.balanceOf(buyer1.address)).to.eq(
@@ -745,9 +745,9 @@ describe("BTTCPadSale", function () {
 
       expect(await usdc.balanceOf(buyer1.address)).to.eq("700000000");
       expect(await usdc.balanceOf(buyer2.address)).to.eq("800000000");
-      expect(await usdc.balanceOf(buyer3.address)).to.eq("500000000");
-      expect(await usdc.balanceOf(buyer4.address)).to.eq("800000000");
-      expect(await usdc.balanceOf(buyer5.address)).to.eq("500000000");
+      expect(await usdc.balanceOf(buyer3.address)).to.eq("700000000");
+      expect(await usdc.balanceOf(buyer4.address)).to.eq("700000000");
+      expect(await usdc.balanceOf(buyer5.address)).to.eq("200000000");
 
       await sale.connect(buyer1).withdrawTokens(1);
       expect(await saleToken.balanceOf(buyer1.address)).to.eq(
@@ -756,12 +756,12 @@ describe("BTTCPadSale", function () {
 
       await sale.connect(buyer3).withdrawTokens(1);
       expect(await saleToken.balanceOf(buyer3.address)).to.eq(
-        web3.utils.toWei("500")
+        web3.utils.toWei("300")
       );
 
       await sale.connect(buyer5).withdrawTokens(1);
       expect(await saleToken.balanceOf(buyer5.address)).to.eq(
-        web3.utils.toWei("500")
+        web3.utils.toWei("800")
       );
     });
   });
