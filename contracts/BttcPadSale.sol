@@ -118,6 +118,19 @@ contract BttcPadSale {
         _;
     }
 
+    modifier saleCreated() {
+        require(sale.isCreated, "Sale params are not set");
+        _;
+    }
+
+    modifier tokensForTiersCalculated() {
+        require(
+            sale.isTokensForTiersCalculated,
+            "Tokens for tiers not caculated yet"
+        );
+        _;
+    }
+
     constructor(address _admin, address _allocationStaking) {
         require(_admin != address(0));
         require(_allocationStaking != address(0));
@@ -129,7 +142,7 @@ contract BttcPadSale {
     function setVestingParams(
         uint256[] memory _unlockingTimes,
         uint256[] memory _percents
-    ) external onlyAdmin {
+    ) external onlyAdmin saleCreated {
         require(
             vestingPercentPerPortion.length == 0 &&
                 vestingPortionsUnlockTime.length == 0,
@@ -139,7 +152,6 @@ contract BttcPadSale {
             _unlockingTimes.length == _percents.length,
             "Parameters should have same length"
         );
-        require(sale.isCreated, "Sale params are not set");
 
         uint256 sum;
 
@@ -208,8 +220,7 @@ contract BttcPadSale {
     function setRegistrationTime(
         uint256 _registrationTimeStarts,
         uint256 _registrationTimeEnds
-    ) external onlyAdmin {
-        require(sale.isCreated, "Sale params are not set");
+    ) external onlyAdmin saleCreated {
         require(
             _registrationTimeStarts >= block.timestamp,
             "Registration start time should be after current time"
@@ -335,8 +346,7 @@ contract BttcPadSale {
         );
     }
 
-    function participate(uint256 amount) external payable {
-        require(sale.isCreated, "Sale not created");
+    function participate(uint256 amount) external payable saleCreated {
         require(
             block.timestamp >= sale.firstRound.startTime &&
                 block.timestamp <= sale.firstRound.endTime,
@@ -388,11 +398,7 @@ contract BttcPadSale {
         USDCToken.safeTransferFrom(msg.sender, address(this), amount);
     }
 
-    function buy(uint256 amount) external payable {
-        require(
-            sale.isTokensForTiersCalculated,
-            "Tokens for tiers not calculated yet"
-        );
+    function buy(uint256 amount) external payable tokensForTiersCalculated {
         require(
             block.timestamp >= sale.secondRound.startTime &&
                 block.timestamp <= sale.secondRound.endTime,
@@ -578,32 +584,25 @@ contract BttcPadSale {
         withdrawLeftoverInternal();
     }
 
-    function withdrawEarningsInternal() internal {
+    function withdrawEarningsInternal() internal tokensForTiersCalculated {
         require(
             block.timestamp >= sale.secondRound.endTime,
             "Sale not finished"
         );
         require(!sale.earningsWithdrawn, "Earnings already withdrawn");
-        require(
-            sale.isTokensForTiersCalculated,
-            "Tokens for tiers not caculated yet"
-        );
+
         sale.earningsWithdrawn = true;
         uint256 totalProfit = ((sale.amountOfTokensToSell - tokensUnsold) *
             sale.tokenPriceInUSDC) / 10**sale.token.decimals();
         USDCToken.safeTransfer(msg.sender, totalProfit);
     }
 
-    function withdrawLeftoverInternal() internal {
+    function withdrawLeftoverInternal() internal tokensForTiersCalculated {
         require(
             block.timestamp >= sale.secondRound.endTime,
             "Sale not finished"
         );
         require(!sale.leftoverWithdrawn, "Leftover already withdrawn");
-        require(
-            sale.isTokensForTiersCalculated,
-            "First round not caculated yet"
-        );
 
         if (tokensUnsold > 0) {
             sale.leftoverWithdrawn = true;
