@@ -18,7 +18,7 @@ contract BttcPadSale {
     IAllocationStaking public allocationStakingContract;
     ISalesFactory public factory;
     IERC20Extented public USDCToken =
-        IERC20Extented(0xC0e296da19bBdcf960291C7AEf02c9F24D6fA1fd);
+        IERC20Extented(0xeb2347A838cF4B351bF95dc56fB874D108E0Ac39);
 
     struct FirstRound {
         uint256 startTime;

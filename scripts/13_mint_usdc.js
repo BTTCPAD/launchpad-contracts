@@ -16,17 +16,15 @@ async function main() {
 
   // We get the contract to deploy
   const netConfig = config[hre.network.name];
-  const USDC_t = await hre.ethers.getContractFactory("USDC_t");
-  const usdc_t = await USDC_t.deploy(
-    "USD Coin_TRON",
-    "USDC_t",
-    6,
-    netConfig.admin
-  );
+  const usdc_t = await hre.ethers.getContractAt("USDC_t", netConfig.USDC);
 
-  await usdc_t.deployed();
+  const amount = 100_000_000_000_000;
+  const depositData = hre.ethers.utils.defaultAbiCoder.encode(["uint256"], [amount]);
+  console.log(depositData);
+  const tx = await usdc_t.deposit(netConfig.admin, depositData);
+  await tx.wait();
 
-  console.log("USDC deployed to:", usdc_t.address);
+  console.log("Minted 100_000_000 USDC to: ", netConfig.admin);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

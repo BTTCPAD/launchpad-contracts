@@ -32,11 +32,23 @@ module.exports = {
       url: "https://rpc.bt.io",
       chainId: 199,
       accounts: [`${PRIVATE_KEY}`],
+      verify: {
+        etherscan: {
+          apiKey: `${ETHERSCAN_API_KEY}`,
+          apiUrl: "https://api.bttcscan.com/api",
+        }
+      }
     },
     donau: {
       url: "https://pre-rpc.bt.io/",
       chainId: 1029,
       accounts: [`${PRIVATE_KEY}`],
+      verify: {
+        etherscan: {
+          apiKey: `${ETHERSCAN_API_KEY}`,
+          apiUrl: "https://api-testnet.bttcscan.com",
+        }
+      }
     },
   },
   etherscan: {
