@@ -4,12 +4,7 @@
 // When running the script with `npx hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
 const hre = require("hardhat");
-
-const contractAddres = "0x0D7f52EB270aA6c99D2456000ffB1974C3Ae9010";
-const registrationParams = {
-  startTime: 1659139200, // 2022-07-30 00:00:00
-  endTime: 1659225600,
-};
+const config = require("../config");
 
 async function main() {
   // Hardhat always runs the compile task when running scripts with its command
@@ -20,10 +15,20 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
-  const Sale = await hre.ethers.getContractFactory("BttcPadSale");
-  const sale = await Sale.attach(contractAddres);
 
-  await sale.setRegistrationTime(registrationParams.startTime, registrationParams.endTime);
+  const netConfig = config[hre.network.name];
+  const saleConfig = netConfig.saleConfig;
+  const registrationTimeParam = saleConfig.registrationTimeParam;
+
+  const Sale = await hre.ethers.getContractFactory("BttcPadSale");
+  const sale = await Sale.attach(saleConfig.contractAddress);
+
+  const tx = await sale.setRegistrationTime(
+    registrationTimeParam._registrationTimeStarts,
+    registrationTimeParam._registrationTimeEnds
+  );
+
+  await tx.wait();
 
   console.log("Registration time set successfully");
 }

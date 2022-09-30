@@ -4,8 +4,7 @@
 // When running the script with `npx hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
 const hre = require("hardhat");
-
-const contractAddres = "0x0D7f52EB270aA6c99D2456000ffB1974C3Ae9010";
+const config = require("../config");
 
 /**
  * This script is for sales owner only
@@ -20,10 +19,14 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
-  const Sale = await hre.ethers.getContractFactory("BttcPadSale");
-  const sale = await Sale.attach(contractAddres);
+  const netConfig = config[hre.network.name];
+  const saleConfig = netConfig.saleConfig;
 
-  await sale.depositTokens();
+  const Sale = await hre.ethers.getContractFactory("BttcPadSale");
+  const sale = await Sale.attach(saleConfig.contractAddress);
+
+  let tx = await sale.depositTokens();
+  await tx.wait();
 
   console.log("Tokens deposited successfully");
 }

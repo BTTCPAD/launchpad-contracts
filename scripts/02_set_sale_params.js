@@ -4,18 +4,7 @@
 // When running the script with `npx hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
 const hre = require("hardhat");
-
-const contractAddres = "0x0D7f52EB270aA6c99D2456000ffB1974C3Ae9010";
-const saleParams = {
-  tokenAddress: "0x791BB207c8A82C1059D1292D284749Bd28eA1c13",
-  saleOwner: "0x284c98652c9bF896E080832fAe015D01C0022a43",
-  tokenPriceInUSDC: "250000", // 0.25 USDC
-  amountOfTokensToSell: "5000000000000000000000000", // 5M
-  saleStart: 1659139200, // 2022-07-30 00:00:00 UTC
-  saleEnd: 1660435200, // 2022-08-14 00:00:00 UTC
-  tokensUnlockTime: 1660521600, // 2022-08-15 00:00:00 UTC
-  minimumTokenDeposit: 50000000, // 50 USDC
-};
+const config = require("../config");
 
 async function main() {
   // Hardhat always runs the compile task when running scripts with its command
@@ -26,20 +15,31 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
-  const Sale = await hre.ethers.getContractFactory("BttcPadSale");
-  const sale = await Sale.attach(contractAddres);
+  const netConfig = config[hre.network.name];
+  const saleConfig = netConfig.saleConfig;
+  const saleParam = saleConfig.saleParam;
 
-  await sale.setSaleParams(
-    saleParams.tokenAddress,
-    saleParams.saleOwner,
-    saleParams.tokenPriceInUSDC,
-    saleParams.amountOfTokensToSell,
-    saleParams.saleStart,
-    saleParams.saleEnd,
-    saleParams.tokensUnlockTime,
-    saleParams.minimumTokenDeposit
+  console.log(saleConfig.contractAddress);
+
+  const Sale = await hre.ethers.getContractFactory("BttcPadSale");
+  const sale = await Sale.attach(saleConfig.contractAddress);
+
+  const tx = await sale.setSaleParams(
+    saleParam._token,
+    saleParam._saleOwner,
+    saleParam._tokenPriceInUSDC,
+    saleParam._amountOfTokensToSell,
+    saleParam._firstRoundStart,
+    saleParam._firstRoundEnd,
+    saleParam._secondRoundStart,
+    saleParam._secondRoundEnd,
+    saleParam._firstRoundMinDeposit,
+    saleParam._secondRoundMinDeposit,
+    saleParam._secondRoundMaxDeposit,
+    saleParam._tokensUnlockTime
   );
 
+  await tx.wait();
   console.log("Sale params set successfully");
 }
 

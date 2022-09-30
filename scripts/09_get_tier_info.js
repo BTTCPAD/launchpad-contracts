@@ -4,9 +4,7 @@
 // When running the script with `npx hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
 const hre = require("hardhat");
-
-const contractAddres = "0x0D7f52EB270aA6c99D2456000ffB1974C3Ae9010";
-const tierIndex = 1;
+const config = require("../config");
 
 async function main() {
   // Hardhat always runs the compile task when running scripts with its command
@@ -17,12 +15,19 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
+  const netConfig = config[hre.network.name];
+  const saleConfig = netConfig.saleConfig;
+  const tiersParam = saleConfig.tiersParam;
+
   const Sale = await hre.ethers.getContractFactory("BttcPadSale");
-  const sale = await Sale.attach(contractAddres);
+  const sale = await Sale.attach(saleConfig.contractAddress);
 
-  const tierInfo = await sale.tierIdToTier(tierIndex);
-
-  console.log(`Tier info for ${tierIndex}: `, tierInfo);
+  await Promise.all(
+    tiersParam.map((_, index) => async () => {
+      const tierInfo = await sale.tierIdToTier(tierIndex);
+      console.log(`Tier info for ${index}: `, tierInfo);
+    })
+  );
 }
 
 // We recommend this pattern to be able to use async/await everywhere

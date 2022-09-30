@@ -4,18 +4,7 @@
 // When running the script with `npx hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
 const hre = require("hardhat");
-
-const contractAddres = "0x0D7f52EB270aA6c99D2456000ffB1974C3Ae9010";
-const vestingParams = [
-  {
-    unlockTime: 1660521600, // 2022-08-15 00:00:00 UTC
-    percent: 30,
-  },
-  {
-    unlockTime: 1660543200, // 2022-08-15 06:00:00 UTC
-    percent: 70,
-  },
-];
+const config = require("../config");
 
 async function main() {
   // Hardhat always runs the compile task when running scripts with its command
@@ -26,13 +15,18 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
+  const netConfig = config[hre.network.name];
+  const saleConfig = netConfig.saleConfig;
+  const vestingParam = saleConfig.vestingParam;
+
   const Sale = await hre.ethers.getContractFactory("BttcPadSale");
-  const sale = await Sale.attach(contractAddres);
+  const sale = await Sale.attach(saleConfig.contractAddress);
 
-  const unlockTimes = vestingParams.map((item) => item.unlockTime);
-  const percents = vestingParams.map((item) => item.percent);
+  const unlockTimes = vestingParam.map((item) => item._unlockingTimes);
+  const percents = vestingParam.map((item) => item._percents);
 
-  await sale.setVestingParams(unlockTimes, percents);
+  const tx = await sale.setVestingParams(unlockTimes, percents);
+  await tx.wait();
 
   console.log("Vesting params set successfully");
 }

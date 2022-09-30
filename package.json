@@ -10,9 +10,11 @@
     "deploy": "hardhat deploy",
     "verify": "hardhat verify",
     "deploy:mainnet": "hardhat deploy --network mainnet",
-    "verify:mainnet": "hardhat --network mainnet etherscan-verify --solc-input",
     "deploy:donau": "hardhat deploy --network donau",
-    "verify:donau": "hardhat --network donau etherscan-verify  --solc-input"
+    "verify:mainnet": "hardhat --network mainnet etherscan-verify --solc-input",
+    "verify:donau": "hardhat --network donau etherscan-verify  --solc-input",
+    "run:mainnet": "hardhat --network mainnet run",
+    "run:donau": "hardhat --network donau run"
   },
   "repository": {
     "type": "git",

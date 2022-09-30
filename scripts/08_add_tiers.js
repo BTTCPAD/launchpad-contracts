@@ -4,15 +4,7 @@
 // When running the script with `npx hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
 const hre = require("hardhat");
-
-const contractAddres = "0x0D7f52EB270aA6c99D2456000ffB1974C3Ae9010";
-const tiers = [
-  { point: "0", weight: 50 },
-  {
-    point: "1000000000000000000000", // 1000 tokens
-    weight: 30,
-  },
-];
+const config = require("../config");
 
 async function main() {
   // Hardhat always runs the compile task when running scripts with its command
@@ -23,13 +15,19 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
+  const netConfig = config[hre.network.name];
+  const saleConfig = netConfig.saleConfig;
+  const tiersParam = saleConfig.tiersParam;
+
   const Sale = await hre.ethers.getContractFactory("BttcPadSale");
-  const sale = await Sale.attach(contractAddres);
+  const sale = await Sale.attach(saleConfig.contractAddress);
 
-  const tierWeights = tiers.map((tier) => tier.weight);
-  const tierPoints = tiers.map((tier) => tier.point);
+  const tierWeights = tiersParam.map((tier) => tier.tierWeights);
+  const tierPoints = tiersParam.map((tier) => tier.tierPoints);
+  const isLottery = tiersParam.map((tier) => tier.isLottery);
 
-  await sale.addTiers(tierWeights, tierPoints);
+  const tx = await sale.addTiers(tierWeights, tierPoints, isLottery);
+  await tx.wait();
 
   console.log("Tiers added successfully");
 }
