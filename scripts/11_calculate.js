@@ -22,22 +22,15 @@ async function main() {
   const netConfig = config[hre.network.name];
   const saleConfig = netConfig.saleConfig;
 
-  const Token = await hre.ethers.getContractFactory("ERC20Token");
-  const token = await Token.attach(saleConfig.saleParam._token);
-
   const Sale = await hre.ethers.getContractFactory("BttcPadSale");
   const sale = await Sale.attach(saleConfig.contractAddress);
 
-  let tx = await token.approve(
-    saleConfig.contractAddress,
-    hre.ethers.constants.MaxUint256
-  );
+  let tx;
+
+  tx = await sale.calculateTokensForTiers();
   await tx.wait();
 
-  tx = await sale.depositTokens();
-  await tx.wait();
-
-  console.log("Tokens deposited successfully");
+  console.log("First round calculated");
 }
 
 // We recommend this pattern to be able to use async/await everywhere

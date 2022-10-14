@@ -1,0 +1,34 @@
+{
+  "contractAddress": "0x101960c8CC0638045eCFf72D7eAA72F021536951",
+  "saleParam": {
+    "_token": "0x1286ae70d5e5f795a6f6ba140a04a6e07cab1fab",
+    "_saleOwner": "0xdc8baab2b29ae7a494882108bf924eb4c3f8daa5",
+    "_tokenPriceInUSDC": "80000",
+    "_amountOfTokensToSell": "5000000000000000000000000",
+    "_firstRoundStart": "1664843400",
+    "_firstRoundEnd": "1664847000",
+    "_secondRoundStart": "1664848800",
+    "_secondRoundEnd": "1664856000",
+    "_firstRoundMinDeposit": "0",
+    "_secondRoundMinDeposit": "0",
+    "_secondRoundMaxDeposit": "1000000000000000",
+    "_tokensUnlockTime": "1664856000"
+  },
+  "vestingParam": [
+    {
+      "_unlockingTimes": "1664856000",
+      "_percents": "100"
+    }
+  ],
+  "registrationTimeParam": {
+    "_registrationTimeStarts": "1664842000",
+    "_registrationTimeEnds": "1664842500"
+  },
+  "tiersParam": [
+    {
+      "tierWeights": "100",
+      "tierPoints": "0",
+      "isLottery": false
+    }
+  ]
+}
