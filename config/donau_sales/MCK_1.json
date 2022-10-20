@@ -1,0 +1,58 @@
+{
+  "contractAddress": "0xd15103FC19583b67cfA914354b36A45664E11517",
+  "saleParam": {
+    "_token": "0x68E8dB65E4eEd7AeFa6Ea10CB7F026d8E01c09D3",
+    "_saleOwner": "0xdc8baab2b29ae7a494882108bf924eb4c3f8daa5",
+    "_tokenPriceInUSDC": "500000",
+    "_amountOfTokensToSell": "2000000000000000000000000",
+    "_firstRoundStart": "1666130400",
+    "_firstRoundEnd": "1666159200",
+    "_secondRoundStart": "1666159800",
+    "_secondRoundEnd": "1666161000",
+    "_firstRoundMinDeposit": "500000000",
+    "_secondRoundMinDeposit": "100000000",
+    "_secondRoundMaxDeposit": "500000000000",
+    "_tokensUnlockTime": "1666166400"
+  },
+  "vestingParam": [
+    {
+      "_unlockingTimes": "1666162800",
+      "_percents": "50"
+    },
+    {
+      "_unlockingTimes": "1666166400",
+      "_percents": "50"
+    }
+  ],
+  "registrationTimeParam": {
+    "_registrationTimeStarts": "1666152600",
+    "_registrationTimeEnds": "1666153800"
+  },
+  "tiersParam": [
+    {
+      "tierWeights": "22",
+      "tierPoints": "5000000000000000000000",
+      "isLottery": false
+    },
+    {
+      "tierWeights": "24",
+      "tierPoints": "10000000000000000000000",
+      "isLottery": false
+    },
+    {
+      "tierWeights": "26",
+      "tierPoints": "25000000000000000000000",
+      "isLottery": false
+    },
+    {
+      "tierWeights": "28",
+      "tierPoints": "50000000000000000000000",
+      "isLottery": false
+    },
+    {
+      "tierWeights": "30",
+      "tierPoints": "100000000000000000000000",
+      "isLottery": false
+    }
+  ]
+}

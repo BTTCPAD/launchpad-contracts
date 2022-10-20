@@ -22,11 +22,26 @@ async function main() {
   const Sale = await hre.ethers.getContractFactory("BttcPadSale");
   const sale = await Sale.attach(saleConfig.contractAddress);
 
+  console.log(tiersParam);
+
+  const ps = tiersParam.map((_, index) => async () => {
+    console.log("-----------------");
+    const tierInfo = await sale.tierIdToTier(index);
+    console.log(`Tier info for ${index}: `, tierInfo);
+  });
+
+  console.log(ps);
+
   await Promise.all(
-    tiersParam.map((_, index) => async () => {
-      const tierInfo = await sale.tierIdToTier(tierIndex);
-      console.log(`Tier info for ${index}: `, tierInfo);
-    })
+    tiersParam.map(
+      (_, index) =>
+        new Promise(async (resolve, reject) => {
+          console.log("-----------------");
+          const tierInfo = await sale.tierIdToTier(index);
+          console.log(`Tier info for ${index}: `, tierInfo);
+          resolve();
+        })
+    )
   );
 }
 

@@ -1,7 +1,9 @@
 // const BTTCPAD = require("./BTTCPAD.json");
 // const BTTCPAD_Test_Registration = require("./BTTCPAD_Test_Registration.json");
-const BTTCPAD_Test_FirstRound = require("./BTTCPAD_Test_FirstRound.json");
-const currentSale = require("./TBED_3_4_5.json");
+// const BTTCPAD_Test_FirstRound = require("./donau_sales/BTTCPAD_Test_FirstRound.json");
+// const currentSale = require("./donau_sales/TBED_3_4_5.json");
+// const currentSale = require("./donau_sales/Test_1019_1.json");
+const currentSale = require("./donau_sales/MCK_2.json");
 
 const admin = "0xDc8bAAb2B29aE7A494882108bF924eb4C3f8DAA5";
 const BTP = "0x1286Ae70D5e5F795A6f6Ba140a04A6E07cAb1FAB";
